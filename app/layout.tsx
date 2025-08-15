@@ -9,6 +9,7 @@ export const metadata: Metadata = {
   title: "Швейна фабрика - Система управління",
   description: "Telegram Web App для управління швейним виробництвом",
   generator: "v0.app",
+  viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no", // додав viewport для мобільних пристроїв
 }
 
 export default function RootLayout({
@@ -19,15 +20,22 @@ export default function RootLayout({
   return (
     <html lang="uk">
       <head>
+        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
         <style>{`
 html {
   font-family: ${GeistSans.style.fontFamily};
   --font-sans: ${GeistSans.variable};
   --font-mono: ${GeistMono.variable};
 }
+/* додав базові стилі для адаптивності */
+body {
+  overflow-x: hidden;
+  -webkit-text-size-adjust: 100%;
+  -ms-text-size-adjust: 100%;
+}
         `}</style>
       </head>
-      <body>
+      <body className="antialiased">
         {children}
         <Toaster />
       </body>

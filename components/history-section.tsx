@@ -34,13 +34,21 @@ export function HistorySection() {
     const operations = JSON.parse(localStorage.getItem("shift_operations") || "[]")
     const qc = JSON.parse(localStorage.getItem("shift_qc") || "[]")
     const warehouse = JSON.parse(localStorage.getItem("shift_warehouse") || "[]")
-    const cutting = JSON.parse(localStorage.getItem("shift_cutting") || "[]") // додав читання розкрою
+    const cutting = JSON.parse(localStorage.getItem("shift_cutting") || "[]")
 
     const allRecords: ShiftRecord[] = [
-      ...operations.map((op: any) => ({ id: op.id, type: "operations" as const, timestamp: op.timestamp, data: op })),
-      ...qc.map((q: any) => ({ id: q.id, type: "qc" as const, timestamp: q.timestamp, data: q })),
-      ...warehouse.map((w: any) => ({ id: w.id, type: "warehouse" as const, timestamp: w.timestamp, data: w })),
-      ...cutting.map((c: any) => ({ id: c.id, type: "cutting" as const, timestamp: c.timestamp, data: c })), // додав розкрій до записів
+      ...operations
+        .filter((op: any) => op && op.id && op.timestamp)
+        .map((op: any) => ({ id: op.id, type: "operations" as const, timestamp: op.timestamp, data: op })),
+      ...qc
+        .filter((q: any) => q && q.id && q.timestamp)
+        .map((q: any) => ({ id: q.id, type: "qc" as const, timestamp: q.timestamp, data: q })),
+      ...warehouse
+        .filter((w: any) => w && w.id && w.timestamp)
+        .map((w: any) => ({ id: w.id, type: "warehouse" as const, timestamp: w.timestamp, data: w })),
+      ...cutting
+        .filter((c: any) => c && c.id && c.timestamp)
+        .map((c: any) => ({ id: c.id, type: "cutting" as const, timestamp: c.timestamp, data: c })),
     ]
 
     allRecords.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
@@ -48,6 +56,8 @@ export function HistorySection() {
   }
 
   const deleteRecord = (record: ShiftRecord) => {
+    if (!record || !record.type) return
+
     const storageKey = `shift_${record.type}`
     const currentRecords = JSON.parse(localStorage.getItem(storageKey) || "[]")
     const updatedRecords = currentRecords.filter((r: any) => r.id !== record.id)
@@ -61,13 +71,15 @@ export function HistorySection() {
   }
 
   const startEdit = (record: ShiftRecord) => {
+    if (!record || !record.type) return
+
     setEditingRecord(record)
     setEditForm({ ...record.data })
     setIsEditDialogOpen(true)
   }
 
   const saveEdit = () => {
-    if (!editingRecord) return
+    if (!editingRecord || !editingRecord.type) return
 
     const storageKey = `shift_${editingRecord.type}`
     const currentRecords = JSON.parse(localStorage.getItem(storageKey) || "[]")
@@ -93,8 +105,10 @@ export function HistorySection() {
   }
 
   const getRecordIcon = (type: string) => {
+    if (!type) return <Clock className="h-4 w-4" />
+
     switch (type) {
-      case "cutting": // додав іконку для розкрою
+      case "cutting":
         return <Scissors className="h-4 w-4" />
       case "operations":
         return <Wrench className="h-4 w-4" />
@@ -108,8 +122,10 @@ export function HistorySection() {
   }
 
   const getRecordTitle = (type: string) => {
+    if (!type) return "Запис"
+
     switch (type) {
-      case "cutting": // додав назву для розкрою
+      case "cutting":
         return "Розкрій"
       case "operations":
         return "Операція"
@@ -130,7 +146,7 @@ export function HistorySection() {
   }
 
   const renderEditForm = () => {
-    if (!editingRecord) return null
+    if (!editingRecord || !editingRecord.type) return null
 
     switch (editingRecord.type) {
       case "cutting": // додав форму редагування для розкрою

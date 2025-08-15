@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -16,6 +16,7 @@ import { postJSON, API_ENDPOINTS, isEndpointConfigured } from "@/lib/api"
 
 export function WarehouseSection() {
   const [isLoading, setIsLoading] = useState(false)
+  const [currentEmployee, setCurrentEmployee] = useState<string>("")
   const { toast } = useToast()
   const isConfigured = isEndpointConfigured(API_ENDPOINTS.warehouse)
 
@@ -31,18 +32,41 @@ export function WarehouseSection() {
     notes: "",
   })
 
+  useEffect(() => {
+    const savedEmployee = localStorage.getItem("currentEmployee")
+    if (savedEmployee) {
+      setCurrentEmployee(savedEmployee)
+    }
+  }, [])
+
   const packagingTypes = ["Пакет", "Коробка", "Зв'язка"]
   const locations = ["Склад А1", "Склад А2", "Склад Б1", "Склад Б2", "Експедиція", "Відвантаження"]
   const sizes = ["XS", "S", "M", "L", "XL", "XXL"]
   const colors = ["Білий", "Чорний", "Сірий", "Синій", "Червоний", "Зелений"]
 
+  const getRequiredFieldsStatus = () => {
+    const missingFields = []
+    if (!formData.product) missingFields.push("Товар")
+    if (!formData.quantity) missingFields.push("Кількість")
+    if (!formData.packaging) missingFields.push("Упаковка")
+    if (!formData.location) missingFields.push("Місце на складі")
+
+    return {
+      isValid: missingFields.length === 0,
+      missingFields,
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!formData.product || !formData.quantity || !formData.packaging || !formData.location) {
+    const { isValid, missingFields } = getRequiredFieldsStatus()
+
+    if (!isValid) {
+      const employeeName = currentEmployee || "швея"
       toast({
-        title: "Помилка валідації",
-        description: "Заповніть всі обов'язкові поля",
+        title: `Шановна ${employeeName}`,
+        description: `Неможливо зробити запис. Заповніть поля: ${missingFields.join(", ")}`,
         variant: "destructive",
       })
       return
@@ -51,7 +75,7 @@ export function WarehouseSection() {
     setIsLoading(true)
 
     const warehouseData = {
-      id: Date.now().toString(), // додаю унікальний ID
+      id: Date.now().toString(),
       ...formData,
       quantity: Number.parseInt(formData.quantity),
       timestamp: new Date().toISOString(),
@@ -59,18 +83,16 @@ export function WarehouseSection() {
     }
 
     try {
-      const existingWarehouse = JSON.parse(localStorage.getItem("shift_warehouse") || "[]") // змінив ключ на shift_warehouse
+      const existingWarehouse = JSON.parse(localStorage.getItem("shift_warehouse") || "[]")
       existingWarehouse.push(warehouseData)
-      localStorage.setItem("shift_warehouse", JSON.stringify(existingWarehouse)) // змінив ключ на shift_warehouse
+      localStorage.setItem("shift_warehouse", JSON.stringify(existingWarehouse))
 
       if (!isConfigured) {
-        // Demo mode
         toast({
           title: "Переказ на склад записано (демо)",
           description: `${formData.quantity} шт. → ${formData.location}`,
         })
 
-        // Reset form
         setFormData({
           product: "",
           sku: "",
@@ -95,7 +117,6 @@ export function WarehouseSection() {
           description: `${formData.quantity} шт. → ${formData.location}`,
         })
 
-        // Reset form
         setFormData({
           product: "",
           sku: "",
@@ -123,6 +144,8 @@ export function WarehouseSection() {
       setIsLoading(false)
     }
   }
+
+  const { isValid } = getRequiredFieldsStatus()
 
   return (
     <div className="space-y-4">
@@ -271,7 +294,7 @@ export function WarehouseSection() {
               />
             </div>
 
-            <Button type="submit" disabled={isLoading} className="w-full">
+            <Button type="submit" disabled={isLoading || !isValid} className="w-full">
               {isLoading ? "Записую..." : "Записати переказ"}
             </Button>
           </form>

@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -16,6 +16,7 @@ import { postJSON, API_ENDPOINTS, isEndpointConfigured } from "@/lib/api"
 
 export function OperationsSection() {
   const [isLoading, setIsLoading] = useState(false)
+  const [currentEmployee, setCurrentEmployee] = useState<string>("")
   const { toast } = useToast()
   const isConfigured = isEndpointConfigured(API_ENDPOINTS.operations)
 
@@ -29,17 +30,41 @@ export function OperationsSection() {
     notes: "",
   })
 
+  useEffect(() => {
+    const savedEmployee = localStorage.getItem("currentEmployee")
+    if (savedEmployee) {
+      setCurrentEmployee(savedEmployee)
+    }
+  }, [])
+
   const operations = ["Оверлок", "Прямоточка", "Розпошив"]
 
   const sizes = ["XS", "S", "M", "L", "XL", "XXL"]
   const colors = ["Білий", "Чорний", "Сірий", "Синій", "Червоний", "Зелений"]
 
+  const getRequiredFieldsStatus = () => {
+    const missingFields = []
+    if (!formData.orderNumber) missingFields.push("Номер замовлення")
+    if (!formData.layer) missingFields.push("Настіл")
+    if (!formData.operation) missingFields.push("Операція")
+    if (!formData.quantity) missingFields.push("Кількість")
+
+    return {
+      isValid: missingFields.length === 0,
+      missingFields,
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!formData.orderNumber || !formData.layer || !formData.operation || !formData.quantity) {
+
+    const { isValid, missingFields } = getRequiredFieldsStatus()
+
+    if (!isValid) {
+      const employeeName = currentEmployee || "швея"
       toast({
-        title: "Помилка валідації",
-        description: "Заповніть всі обов'язкові поля",
+        title: `Шановна ${employeeName}`,
+        description: `Неможливо зробити запис. Заповніть поля: ${missingFields.join(", ")}`,
         variant: "destructive",
       })
       return
@@ -61,13 +86,11 @@ export function OperationsSection() {
       localStorage.setItem("shift_operations", JSON.stringify(existingOperations))
 
       if (!isConfigured) {
-        // Demo mode
         toast({
           title: "Операцію записано (демо)",
           description: `Замовлення ${formData.orderNumber}, Настіл ${formData.layer}: ${formData.quantity} шт.`,
         })
 
-        // Reset form
         setFormData({
           orderNumber: "",
           layer: "",
@@ -90,7 +113,6 @@ export function OperationsSection() {
           description: `Замовлення ${formData.orderNumber}, Настіл ${formData.layer}: ${formData.quantity} шт.`,
         })
 
-        // Reset form
         setFormData({
           orderNumber: "",
           layer: "",
@@ -116,6 +138,8 @@ export function OperationsSection() {
       setIsLoading(false)
     }
   }
+
+  const { isValid } = getRequiredFieldsStatus()
 
   return (
     <div className="space-y-4">
@@ -232,7 +256,7 @@ export function OperationsSection() {
               />
             </div>
 
-            <Button type="submit" disabled={isLoading} className="w-full">
+            <Button type="submit" disabled={isLoading || !isValid} className="w-full">
               {isLoading ? "Записую..." : "Записати операцію"}
             </Button>
           </form>

@@ -15,6 +15,7 @@ import { postJSON, API_ENDPOINTS, isEndpointConfigured } from "@/lib/api"
 export function CuttingSection() {
   const [isLoading, setIsLoading] = useState(false)
   const [layerTotal, setLayerTotal] = useState(0)
+  const [currentEmployee, setCurrentEmployee] = useState<string>("")
   const { toast } = useToast()
   const isConfigured = isEndpointConfigured(API_ENDPOINTS.operations)
 
@@ -26,7 +27,13 @@ export function CuttingSection() {
     notes: "",
   })
 
-  // Підрахунок загальної кількості по настилу
+  useEffect(() => {
+    const savedEmployee = localStorage.getItem("currentEmployee")
+    if (savedEmployee) {
+      setCurrentEmployee(savedEmployee)
+    }
+  }, [])
+
   useEffect(() => {
     if (formData.orderNumber && formData.layer) {
       const existingCutting = JSON.parse(localStorage.getItem("shift_cutting") || "[]")
@@ -40,36 +47,51 @@ export function CuttingSection() {
     }
   }, [formData.orderNumber, formData.layer])
 
+  const getRequiredFieldsStatus = () => {
+    const missingFields = []
+    if (!formData.orderNumber) missingFields.push("Номер замовлення")
+    if (!formData.layer) missingFields.push("Настіл")
+    if (!formData.size) missingFields.push("Розмір")
+    if (!formData.quantity) missingFields.push("Кількість")
+
+    return {
+      isValid: missingFields.length === 0,
+      missingFields,
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    // Валідація всіх обов'язкових полів
-    if (!formData.orderNumber || !formData.layer || !formData.size || !formData.quantity) {
+    const { isValid, missingFields } = getRequiredFieldsStatus()
+
+    if (!isValid) {
+      const employeeName = currentEmployee || "швея"
       toast({
-        title: "Помилка валідації",
-        description: "Заповніть всі обов'язкові поля",
+        title: `Шановна ${employeeName}`,
+        description: `Неможливо зробити запис. Заповніть поля: ${missingFields.join(", ")}`,
         variant: "destructive",
       })
       return
     }
 
-    // Перевірка, що розмір є числом
     const sizeNum = Number.parseFloat(formData.size)
     if (isNaN(sizeNum) || sizeNum <= 0) {
+      const employeeName = currentEmployee || "швея"
       toast({
-        title: "Помилка валідації",
-        description: "Розмір повинен бути додатним числом",
+        title: `Шановна ${employeeName}`,
+        description: "Неможливо зробити запис. Розмір повинен бути додатним числом",
         variant: "destructive",
       })
       return
     }
 
-    // Перевірка, що кількість є числом
     const quantityNum = Number.parseInt(formData.quantity)
     if (isNaN(quantityNum) || quantityNum <= 0) {
+      const employeeName = currentEmployee || "швея"
       toast({
-        title: "Помилка валідації",
-        description: "Кількість повинна бути додатним числом",
+        title: `Шановна ${employeeName}`,
+        description: "Неможливо зробити запис. Кількість повинна бути додатним числом",
         variant: "destructive",
       })
       return
@@ -80,7 +102,7 @@ export function CuttingSection() {
     const cuttingData = {
       id: Date.now().toString(),
       ...formData,
-      size: sizeNum, // Зберігаємо розмір як число
+      size: sizeNum,
       quantity: quantityNum,
       timestamp: new Date().toISOString(),
       user_id: "telegram_user_id",
@@ -88,19 +110,16 @@ export function CuttingSection() {
     }
 
     try {
-      // Зберігаємо в localStorage для історії
       const existingCutting = JSON.parse(localStorage.getItem("shift_cutting") || "[]")
       existingCutting.push(cuttingData)
       localStorage.setItem("shift_cutting", JSON.stringify(existingCutting))
 
       if (!isConfigured) {
-        // Demo mode
         toast({
           title: "Розкрій записано (демо)",
           description: `Замовлення ${formData.orderNumber}, Настіл ${formData.layer}: ${formData.size} см - ${formData.quantity} шт.`,
         })
 
-        // Reset form
         setFormData({
           orderNumber: "",
           layer: "",
@@ -121,7 +140,6 @@ export function CuttingSection() {
           description: `Замовлення ${formData.orderNumber}, Настіл ${formData.layer}: ${formData.size} см - ${formData.quantity} шт.`,
         })
 
-        // Reset form
         setFormData({
           orderNumber: "",
           layer: "",
@@ -145,6 +163,8 @@ export function CuttingSection() {
       setIsLoading(false)
     }
   }
+
+  const { isValid } = getRequiredFieldsStatus()
 
   return (
     <div className="space-y-4">
@@ -235,7 +255,7 @@ export function CuttingSection() {
               />
             </div>
 
-            <Button type="submit" disabled={isLoading} className="w-full">
+            <Button type="submit" disabled={isLoading || !isValid} className="w-full">
               {isLoading ? "Записую..." : "Записати розкрій"}
             </Button>
           </form>

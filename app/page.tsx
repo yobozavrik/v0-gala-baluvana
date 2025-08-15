@@ -2,7 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { ShiftSection } from "@/components/shift-section"
-import { CuttingSection } from "@/components/cutting-section" // додав імпорт розкрою
+import { CuttingSection } from "@/components/cutting-section"
 import { OperationsSection } from "@/components/operations-section"
 import { QCSection } from "@/components/qc-section"
 import { WarehouseSection } from "@/components/warehouse-section"
@@ -41,7 +41,7 @@ export default function HomePage() {
     switch (activeSection) {
       case "shift":
         return <ShiftSection />
-      case "cutting": // додав обробку розкрою
+      case "cutting":
         return <CuttingSection />
       case "operations":
         return <OperationsSection />
@@ -57,14 +57,14 @@ export default function HomePage() {
   }
 
   return (
-    <div className="min-h-screen bg-background pb-20">
-      <div className="container mx-auto p-4 max-w-md">
-        <header className="mb-6">
-          <h1 className="text-2xl font-bold text-center">Швейна фабрика</h1>
-          <p className="text-muted-foreground text-center">Система управління виробництвом</p>
+    <div className="min-h-screen bg-background pb-16 sm:pb-20 md:pb-24">
+      <div className="container mx-auto p-3 sm:p-4 md:p-6 max-w-sm sm:max-w-md md:max-w-lg lg:max-w-xl">
+        <header className="mb-4 sm:mb-6">
+          <h1 className="text-xl sm:text-2xl md:text-3xl font-bold text-center">Швейна фабрика</h1>
+          <p className="text-sm sm:text-base text-muted-foreground text-center">Система управління виробництвом</p>
         </header>
 
-        <main>{renderSection()}</main>
+        <main className="space-y-4 sm:space-y-6">{renderSection()}</main>
       </div>
 
       <BottomNavigation

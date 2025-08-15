@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -16,6 +16,7 @@ import { postJSON, API_ENDPOINTS, isEndpointConfigured } from "@/lib/api"
 
 export function QCSection() {
   const [isLoading, setIsLoading] = useState(false)
+  const [currentEmployee, setCurrentEmployee] = useState<string>("")
   const { toast } = useToast()
   const isConfigured = isEndpointConfigured(API_ENDPOINTS.qc)
 
@@ -30,6 +31,13 @@ export function QCSection() {
     defectReason: "",
     notes: "",
   })
+
+  useEffect(() => {
+    const savedEmployee = localStorage.getItem("currentEmployee")
+    if (savedEmployee) {
+      setCurrentEmployee(savedEmployee)
+    }
+  }, [])
 
   const operations = ["Прасування", "Пакування"]
 
@@ -50,31 +58,39 @@ export function QCSection() {
   const rejectedQty = Number.parseInt(formData.rejectedQty) || 0
   const acceptedQty = totalQty - rejectedQty
 
+  const getRequiredFieldsStatus = () => {
+    const missingFields = []
+    if (!formData.operation) missingFields.push("Операція")
+    if (!formData.product) missingFields.push("Товар")
+    if (!formData.totalQty || totalQty === 0) missingFields.push("Загальна кількість")
+    if (rejectedQty > 0 && !formData.defectReason) missingFields.push("Причина браку")
+
+    return {
+      isValid: missingFields.length === 0,
+      missingFields,
+    }
+  }
+
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
 
-    if (!formData.operation || !formData.product || totalQty === 0) {
+    const { isValid, missingFields } = getRequiredFieldsStatus()
+
+    if (!isValid) {
+      const employeeName = currentEmployee || "швея"
       toast({
-        title: "Помилка валідації",
-        description: "Заповніть операцію, товар та кількість",
+        title: `Шановна ${employeeName}`,
+        description: `Неможливо зробити запис. Заповніть поля: ${missingFields.join(", ")}`,
         variant: "destructive",
       })
       return
     }
 
     if (rejectedQty > totalQty) {
+      const employeeName = currentEmployee || "швея"
       toast({
-        title: "Помилка валідації",
-        description: "Брак не може перевищувати загальну кількість",
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (rejectedQty > 0 && !formData.defectReason) {
-      toast({
-        title: "Помилка валідації",
-        description: "Оберіть причину браку",
+        title: `Шановна ${employeeName}`,
+        description: "Неможливо зробити запис. Брак не може перевищувати загальну кількість",
         variant: "destructive",
       })
       return
@@ -83,34 +99,29 @@ export function QCSection() {
     setIsLoading(true)
 
     const qcData = {
-      id: Date.now().toString(), // додаю унікальний ID
+      id: Date.now().toString(),
       ...formData,
       totalQty,
-      acceptedQty, // розраховується автоматично
+      acceptedQty,
       rejectedQty,
       timestamp: new Date().toISOString(),
       user_id: "telegram_user_id",
     }
 
     try {
-      const currentEmployee = localStorage.getItem("currentEmployee")
-      if (currentEmployee) {
-        const existingQC = JSON.parse(localStorage.getItem("shift_qc") || "[]") // змінив ключ на shift_qc
-        existingQC.push({
-          ...qcData,
-          employee: currentEmployee,
-        })
-        localStorage.setItem("shift_qc", JSON.stringify(existingQC)) // змінив ключ на shift_qc
-      }
+      const existingQC = JSON.parse(localStorage.getItem("shift_qc") || "[]")
+      existingQC.push({
+        ...qcData,
+        employee: currentEmployee,
+      })
+      localStorage.setItem("shift_qc", JSON.stringify(existingQC))
 
       if (!isConfigured) {
-        // Demo mode
         toast({
           title: "Контроль якості записано (демо)",
           description: `${formData.operation}: Загалом ${totalQty}, Прийнято ${acceptedQty}, Брак ${rejectedQty}`,
         })
 
-        // Reset form
         setFormData({
           operation: "",
           product: "",
@@ -135,7 +146,6 @@ export function QCSection() {
           description: `${formData.operation}: Загалом ${totalQty}, Прийнято ${acceptedQty}, Брак ${rejectedQty}`,
         })
 
-        // Reset form
         setFormData({
           operation: "",
           product: "",
@@ -163,6 +173,8 @@ export function QCSection() {
       setIsLoading(false)
     }
   }
+
+  const { isValid } = getRequiredFieldsStatus()
 
   return (
     <div className="space-y-4">
@@ -344,7 +356,7 @@ export function QCSection() {
               </div>
             )}
 
-            <Button type="submit" disabled={isLoading} className="w-full">
+            <Button type="submit" disabled={isLoading || !isValid} className="w-full">
               {isLoading ? "Записую..." : "Записати контроль"}
             </Button>
           </form>
