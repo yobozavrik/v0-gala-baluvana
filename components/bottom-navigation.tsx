@@ -1,7 +1,7 @@
 "use client"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
-import { Clock, Wrench, CheckCircle, Package, History } from "lucide-react"
+import { Clock, Wrench, CheckCircle, Package, History, Scissors } from "lucide-react"
 
 interface BottomNavigationProps {
   activeSection: string
@@ -16,6 +16,12 @@ export function BottomNavigation({ activeSection, onSectionChange, isShiftActive
       label: "Зміна",
       icon: Clock,
       enabled: true,
+    },
+    {
+      id: "cutting", // додав розкрій як окремий розділ
+      label: "Розкрій",
+      icon: Scissors,
+      enabled: isShiftActive,
     },
     {
       id: "operations",
@@ -46,7 +52,9 @@ export function BottomNavigation({ activeSection, onSectionChange, isShiftActive
   return (
     <div className="fixed bottom-0 left-0 right-0 bg-background border-t border-border">
       <div className="container mx-auto max-w-md">
-        <div className="grid grid-cols-5 gap-1 p-2">
+        <div className="grid grid-cols-6 gap-1 p-2">
+          {" "}
+          {/* змінив на 6 колонок для нового розділу */}
           {sections.map((section) => {
             const Icon = section.icon
             const isActive = activeSection === section.id

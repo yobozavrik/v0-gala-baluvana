@@ -10,11 +10,11 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
-import { Trash2, Edit, Clock, Wrench, CheckCircle, Package, FileText } from "lucide-react"
+import { Trash2, Edit, Clock, Wrench, CheckCircle, Package, FileText, Scissors } from "lucide-react"
 
 interface ShiftRecord {
   id: string
-  type: "operations" | "qc" | "warehouse"
+  type: "operations" | "qc" | "warehouse" | "cutting" // додав тип cutting
   timestamp: string
   data: any
 }
@@ -34,11 +34,13 @@ export function HistorySection() {
     const operations = JSON.parse(localStorage.getItem("shift_operations") || "[]")
     const qc = JSON.parse(localStorage.getItem("shift_qc") || "[]")
     const warehouse = JSON.parse(localStorage.getItem("shift_warehouse") || "[]")
+    const cutting = JSON.parse(localStorage.getItem("shift_cutting") || "[]") // додав читання розкрою
 
     const allRecords: ShiftRecord[] = [
       ...operations.map((op: any) => ({ id: op.id, type: "operations" as const, timestamp: op.timestamp, data: op })),
       ...qc.map((q: any) => ({ id: q.id, type: "qc" as const, timestamp: q.timestamp, data: q })),
       ...warehouse.map((w: any) => ({ id: w.id, type: "warehouse" as const, timestamp: w.timestamp, data: w })),
+      ...cutting.map((c: any) => ({ id: c.id, type: "cutting" as const, timestamp: c.timestamp, data: c })), // додав розкрій до записів
     ]
 
     allRecords.sort((a, b) => new Date(b.timestamp).getTime() - new Date(a.timestamp).getTime())
@@ -92,6 +94,8 @@ export function HistorySection() {
 
   const getRecordIcon = (type: string) => {
     switch (type) {
+      case "cutting": // додав іконку для розкрою
+        return <Scissors className="h-4 w-4" />
       case "operations":
         return <Wrench className="h-4 w-4" />
       case "qc":
@@ -105,6 +109,8 @@ export function HistorySection() {
 
   const getRecordTitle = (type: string) => {
     switch (type) {
+      case "cutting": // додав назву для розкрою
+        return "Розкрій"
       case "operations":
         return "Операція"
       case "qc":
@@ -127,14 +133,72 @@ export function HistorySection() {
     if (!editingRecord) return null
 
     switch (editingRecord.type) {
+      case "cutting": // додав форму редагування для розкрою
+        return (
+          <div className="space-y-4">
+            <div>
+              <Label>Номер замовлення</Label>
+              <Input
+                value={editForm.orderNumber || ""}
+                onChange={(e) => setEditForm({ ...editForm, orderNumber: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>Настіл</Label>
+              <Input
+                value={editForm.layer || ""}
+                onChange={(e) => setEditForm({ ...editForm, layer: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>Розмір</Label>
+              <Select value={editForm.size || ""} onValueChange={(value) => setEditForm({ ...editForm, size: value })}>
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="XS">XS</SelectItem>
+                  <SelectItem value="S">S</SelectItem>
+                  <SelectItem value="M">M</SelectItem>
+                  <SelectItem value="L">L</SelectItem>
+                  <SelectItem value="XL">XL</SelectItem>
+                  <SelectItem value="XXL">XXL</SelectItem>
+                </SelectContent>
+              </Select>
+            </div>
+            <div>
+              <Label>Кількість</Label>
+              <Input
+                type="number"
+                value={editForm.quantity || ""}
+                onChange={(e) => setEditForm({ ...editForm, quantity: Number.parseInt(e.target.value) })}
+              />
+            </div>
+            <div>
+              <Label>Примітки</Label>
+              <Textarea
+                value={editForm.notes || ""}
+                onChange={(e) => setEditForm({ ...editForm, notes: e.target.value })}
+              />
+            </div>
+          </div>
+        )
+
       case "operations":
         return (
           <div className="space-y-4">
             <div>
-              <Label>Товар</Label>
+              <Label>Номер замовлення</Label>
               <Input
-                value={editForm.product || ""}
-                onChange={(e) => setEditForm({ ...editForm, product: e.target.value })}
+                value={editForm.orderNumber || ""}
+                onChange={(e) => setEditForm({ ...editForm, orderNumber: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>Настіл</Label>
+              <Input
+                value={editForm.layer || ""}
+                onChange={(e) => setEditForm({ ...editForm, layer: e.target.value })}
               />
             </div>
             <div>
@@ -147,11 +211,9 @@ export function HistorySection() {
                   <SelectValue />
                 </SelectTrigger>
                 <SelectContent>
-                  <SelectItem value="cutting">Розкрій</SelectItem>
-                  <SelectItem value="sewing">Пошиття</SelectItem>
-                  <SelectItem value="overlock">Оверлок</SelectItem>
-                  <SelectItem value="buttonhole">Петля</SelectItem>
-                  <SelectItem value="button">Ґудзик</SelectItem>
+                  <SelectItem value="Оверлок">Оверлок</SelectItem>
+                  <SelectItem value="Прямоточка">Прямоточка</SelectItem>
+                  <SelectItem value="Розпошив">Розпошив</SelectItem>
                 </SelectContent>
               </Select>
             </div>
@@ -177,11 +239,33 @@ export function HistorySection() {
         return (
           <div className="space-y-4">
             <div>
-              <Label>Товар</Label>
+              <Label>Номер замовлення</Label>
               <Input
-                value={editForm.product || ""}
-                onChange={(e) => setEditForm({ ...editForm, product: e.target.value })}
+                value={editForm.orderNumber || ""}
+                onChange={(e) => setEditForm({ ...editForm, orderNumber: e.target.value })}
               />
+            </div>
+            <div>
+              <Label>Настіл</Label>
+              <Input
+                value={editForm.layer || ""}
+                onChange={(e) => setEditForm({ ...editForm, layer: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>Операція</Label>
+              <Select
+                value={editForm.operation || ""}
+                onValueChange={(value) => setEditForm({ ...editForm, operation: value })}
+              >
+                <SelectTrigger>
+                  <SelectValue />
+                </SelectTrigger>
+                <SelectContent>
+                  <SelectItem value="Прасування">Прасування</SelectItem>
+                  <SelectItem value="Пакування">Пакування</SelectItem>
+                </SelectContent>
+              </Select>
             </div>
             <div>
               <Label>Прийнято</Label>
@@ -233,10 +317,17 @@ export function HistorySection() {
         return (
           <div className="space-y-4">
             <div>
-              <Label>Товар</Label>
+              <Label>Номер замовлення</Label>
               <Input
-                value={editForm.product || ""}
-                onChange={(e) => setEditForm({ ...editForm, product: e.target.value })}
+                value={editForm.orderNumber || ""}
+                onChange={(e) => setEditForm({ ...editForm, orderNumber: e.target.value })}
+              />
+            </div>
+            <div>
+              <Label>Настіл</Label>
+              <Input
+                value={editForm.layer || ""}
+                onChange={(e) => setEditForm({ ...editForm, layer: e.target.value })}
               />
             </div>
             <div>
@@ -303,7 +394,7 @@ export function HistorySection() {
           <FileText className="h-12 w-12 mx-auto text-muted-foreground mb-4" />
           <h3 className="text-lg font-medium mb-2">Історія порожня</h3>
           <p className="text-muted-foreground">
-            Записи з'являться тут після виконання операцій, контролю якості або переказів на склад.
+            Записи з'являться тут після виконання розкрою, операцій, контролю якості або переказів на склад.
           </p>
         </div>
       </div>
@@ -359,8 +450,21 @@ export function HistorySection() {
             <CardContent className="pt-0">
               <div className="text-sm space-y-1">
                 <div>
-                  <strong>Товар:</strong> {record.data.product}
+                  <strong>Замовлення:</strong> {record.data.orderNumber}
                 </div>
+                <div>
+                  <strong>Настіл:</strong> {record.data.layer}
+                </div>
+                {record.type === "cutting" && ( // додав відображення даних розкрою
+                  <>
+                    <div>
+                      <strong>Розмір:</strong> {record.data.size}
+                    </div>
+                    <div>
+                      <strong>Кількість:</strong> {record.data.quantity}
+                    </div>
+                  </>
+                )}
                 {record.type === "operations" && (
                   <>
                     <div>
@@ -373,6 +477,9 @@ export function HistorySection() {
                 )}
                 {record.type === "qc" && (
                   <>
+                    <div>
+                      <strong>Операція:</strong> {record.data.operation}
+                    </div>
                     <div>
                       <strong>Прийнято:</strong> {record.data.accepted_qty}
                     </div>

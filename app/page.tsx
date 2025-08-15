@@ -2,6 +2,7 @@
 
 import { useState, useEffect } from "react"
 import { ShiftSection } from "@/components/shift-section"
+import { CuttingSection } from "@/components/cutting-section" // додав імпорт розкрою
 import { OperationsSection } from "@/components/operations-section"
 import { QCSection } from "@/components/qc-section"
 import { WarehouseSection } from "@/components/warehouse-section"
@@ -40,6 +41,8 @@ export default function HomePage() {
     switch (activeSection) {
       case "shift":
         return <ShiftSection />
+      case "cutting": // додав обробку розкрою
+        return <CuttingSection />
       case "operations":
         return <OperationsSection />
       case "qc":

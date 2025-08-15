@@ -1,21 +1,20 @@
 "use client"
 
 import type React from "react"
-
-import { useState } from "react"
+import { useState, useEffect } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
-import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Textarea } from "@/components/ui/textarea"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
-import { AlertCircle, Settings } from "lucide-react"
+import { AlertCircle, Settings, Scissors } from "lucide-react"
 import { postJSON, API_ENDPOINTS, isEndpointConfigured } from "@/lib/api"
 
-export function OperationsSection() {
+export function CuttingSection() {
   const [isLoading, setIsLoading] = useState(false)
+  const [layerTotal, setLayerTotal] = useState(0)
   const { toast } = useToast()
   const isConfigured = isEndpointConfigured(API_ENDPOINTS.operations)
 
@@ -23,20 +22,29 @@ export function OperationsSection() {
     orderNumber: "",
     layer: "",
     size: "",
-    color: "",
-    operation: "",
     quantity: "",
     notes: "",
   })
 
-  const operations = ["Оверлок", "Прямоточка", "Розпошив"]
-
-  const sizes = ["XS", "S", "M", "L", "XL", "XXL"]
-  const colors = ["Білий", "Чорний", "Сірий", "Синій", "Червоний", "Зелений"]
+  // Підрахунок загальної кількості по настилу
+  useEffect(() => {
+    if (formData.orderNumber && formData.layer) {
+      const existingCutting = JSON.parse(localStorage.getItem("shift_cutting") || "[]")
+      const layerItems = existingCutting.filter(
+        (item: any) => item.orderNumber === formData.orderNumber && item.layer === formData.layer,
+      )
+      const total = layerItems.reduce((sum: number, item: any) => sum + item.quantity, 0)
+      setLayerTotal(total)
+    } else {
+      setLayerTotal(0)
+    }
+  }, [formData.orderNumber, formData.layer])
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
-    if (!formData.orderNumber || !formData.layer || !formData.operation || !formData.quantity) {
+
+    // Валідація всіх обов'язкових полів
+    if (!formData.orderNumber || !formData.layer || !formData.size || !formData.quantity) {
       toast({
         title: "Помилка валідації",
         description: "Заповніть всі обов'язкові поля",
@@ -45,26 +53,51 @@ export function OperationsSection() {
       return
     }
 
+    // Перевірка, що розмір є числом
+    const sizeNum = Number.parseFloat(formData.size)
+    if (isNaN(sizeNum) || sizeNum <= 0) {
+      toast({
+        title: "Помилка валідації",
+        description: "Розмір повинен бути додатним числом",
+        variant: "destructive",
+      })
+      return
+    }
+
+    // Перевірка, що кількість є числом
+    const quantityNum = Number.parseInt(formData.quantity)
+    if (isNaN(quantityNum) || quantityNum <= 0) {
+      toast({
+        title: "Помилка валідації",
+        description: "Кількість повинна бути додатним числом",
+        variant: "destructive",
+      })
+      return
+    }
+
     setIsLoading(true)
 
-    const operationData = {
+    const cuttingData = {
       id: Date.now().toString(),
       ...formData,
-      quantity: Number.parseInt(formData.quantity),
+      size: sizeNum, // Зберігаємо розмір як число
+      quantity: quantityNum,
       timestamp: new Date().toISOString(),
       user_id: "telegram_user_id",
+      type: "cutting",
     }
 
     try {
-      const existingOperations = JSON.parse(localStorage.getItem("shift_operations") || "[]")
-      existingOperations.push(operationData)
-      localStorage.setItem("shift_operations", JSON.stringify(existingOperations))
+      // Зберігаємо в localStorage для історії
+      const existingCutting = JSON.parse(localStorage.getItem("shift_cutting") || "[]")
+      existingCutting.push(cuttingData)
+      localStorage.setItem("shift_cutting", JSON.stringify(existingCutting))
 
       if (!isConfigured) {
         // Demo mode
         toast({
-          title: "Операцію записано (демо)",
-          description: `Замовлення ${formData.orderNumber}, Настіл ${formData.layer}: ${formData.quantity} шт.`,
+          title: "Розкрій записано (демо)",
+          description: `Замовлення ${formData.orderNumber}, Настіл ${formData.layer}: ${formData.size} см - ${formData.quantity} шт.`,
         })
 
         // Reset form
@@ -72,8 +105,6 @@ export function OperationsSection() {
           orderNumber: "",
           layer: "",
           size: "",
-          color: "",
-          operation: "",
           quantity: "",
           notes: "",
         })
@@ -82,12 +113,12 @@ export function OperationsSection() {
         return
       }
 
-      const result = await postJSON(API_ENDPOINTS.operations, operationData)
+      const result = await postJSON(API_ENDPOINTS.operations, cuttingData)
 
       if (result.success) {
         toast({
-          title: "Операцію записано",
-          description: `Замовлення ${formData.orderNumber}, Настіл ${formData.layer}: ${formData.quantity} шт.`,
+          title: "Розкрій записано",
+          description: `Замовлення ${formData.orderNumber}, Настіл ${formData.layer}: ${formData.size} см - ${formData.quantity} шт.`,
         })
 
         // Reset form
@@ -95,8 +126,6 @@ export function OperationsSection() {
           orderNumber: "",
           layer: "",
           size: "",
-          color: "",
-          operation: "",
           quantity: "",
           notes: "",
         })
@@ -131,7 +160,10 @@ export function OperationsSection() {
 
       <Card>
         <CardHeader>
-          <CardTitle>Запис операцій</CardTitle>
+          <CardTitle className="flex items-center gap-2">
+            <Scissors className="h-5 w-5" />
+            Розкрій
+          </CardTitle>
         </CardHeader>
         <CardContent>
           <form onSubmit={handleSubmit} className="space-y-4">
@@ -158,55 +190,16 @@ export function OperationsSection() {
 
             <div className="grid grid-cols-2 gap-4">
               <div>
-                <Label htmlFor="size">Розмір</Label>
-                <Select value={formData.size} onValueChange={(value) => setFormData({ ...formData, size: value })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Оберіть розмір" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sizes.map((size) => (
-                      <SelectItem key={size} value={size}>
-                        {size}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-              <div>
-                <Label htmlFor="color">Колір</Label>
-                <Select value={formData.color} onValueChange={(value) => setFormData({ ...formData, color: value })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Оберіть колір" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {colors.map((color) => (
-                      <SelectItem key={color} value={color}>
-                        {color}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
-              </div>
-            </div>
-
-            <div className="grid grid-cols-2 gap-4">
-              <div>
-                <Label htmlFor="operation">Операція *</Label>
-                <Select
-                  value={formData.operation}
-                  onValueChange={(value) => setFormData({ ...formData, operation: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Оберіть операцію" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {operations.map((operation) => (
-                      <SelectItem key={operation} value={operation}>
-                        {operation}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Label htmlFor="size">Розмір (см) *</Label>
+                <Input
+                  id="size"
+                  type="number"
+                  step="0.1"
+                  min="0.1"
+                  value={formData.size}
+                  onChange={(e) => setFormData({ ...formData, size: e.target.value })}
+                  placeholder="Розмір в см"
+                />
               </div>
               <div>
                 <Label htmlFor="quantity">Кількість *</Label>
@@ -221,6 +214,16 @@ export function OperationsSection() {
               </div>
             </div>
 
+            {layerTotal > 0 && (
+              <Alert>
+                <AlertCircle className="h-4 w-4" />
+                <AlertDescription>
+                  Загальна кількість по настилу {formData.layer}:{" "}
+                  {layerTotal + (formData.quantity ? Number.parseInt(formData.quantity) : 0)} шт.
+                </AlertDescription>
+              </Alert>
+            )}
+
             <div>
               <Label htmlFor="notes">Примітки</Label>
               <Textarea
@@ -233,7 +236,7 @@ export function OperationsSection() {
             </div>
 
             <Button type="submit" disabled={isLoading} className="w-full">
-              {isLoading ? "Записую..." : "Записати операцію"}
+              {isLoading ? "Записую..." : "Записати розкрій"}
             </Button>
           </form>
         </CardContent>
