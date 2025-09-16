@@ -10,6 +10,7 @@ import { useToast } from "@/hooks/use-toast"
 import { postJSON, API_ENDPOINTS, isEndpointConfigured } from "@/lib/api"
 import { offlineQueue } from "@/lib/offline-queue"
 import { AlertCircle, Settings, User } from "lucide-react"
+import { useShiftStatus } from "@/components/shift-status-context"
 
 interface ShiftRecord {
   action: "start" | "end"
@@ -30,9 +31,8 @@ interface ShiftData {
 const EMPLOYEES = ["Кравчук", "Кучма", "Ющенко", "Янукович", "Порошенко", "Зеленський"]
 
 export function ShiftSection() {
-  const [currentShift, setCurrentShift] = useState<"active" | "inactive">("inactive")
+  const { status: currentShift, currentEmployee, startShift, endShift } = useShiftStatus()
   const [selectedEmployee, setSelectedEmployee] = useState<string>("")
-  const [currentEmployee, setCurrentEmployee] = useState<string>("")
   const [isLoading, setIsLoading] = useState(false)
   const [recentShifts, setRecentShifts] = useState<ShiftRecord[]>([])
   const { toast } = useToast()
@@ -40,16 +40,6 @@ export function ShiftSection() {
   const isConfigured = isEndpointConfigured(API_ENDPOINTS.shift)
 
   useEffect(() => {
-    // Load shift status from localStorage
-    const savedShift = localStorage.getItem("currentShift")
-    const savedEmployee = localStorage.getItem("currentEmployee")
-    if (savedShift) {
-      setCurrentShift(savedShift as "active" | "inactive")
-    }
-    if (savedEmployee) {
-      setCurrentEmployee(savedEmployee)
-    }
-
     // Load recent shifts
     const savedShifts = localStorage.getItem("recentShifts")
     if (savedShifts) {
@@ -95,18 +85,13 @@ export function ShiftSection() {
     }
 
     try {
-      if (!isConfigured) {
-        // Demo mode - just update local state
-        const newShift = action === "start" ? "active" : "inactive"
-        setCurrentShift(newShift)
-        localStorage.setItem("currentShift", newShift)
+      const employeeName = action === "start" ? selectedEmployee : currentEmployee
 
+      if (!isConfigured) {
         if (action === "start") {
-          setCurrentEmployee(selectedEmployee)
-          localStorage.setItem("currentEmployee", selectedEmployee)
+          startShift(employeeName)
         } else {
-          setCurrentEmployee("")
-          localStorage.removeItem("currentEmployee")
+          endShift()
           localStorage.removeItem("shiftOperations")
           localStorage.removeItem("shiftQC")
           localStorage.removeItem("shiftWarehouse")
@@ -116,7 +101,7 @@ export function ShiftSection() {
           action,
           timestamp: new Date().toLocaleString("uk-UA"),
           status: "demo",
-          employee: action === "start" ? selectedEmployee : currentEmployee,
+          employee: employeeName,
         }
 
         const updatedShifts = [shiftRecord, ...recentShifts.slice(0, 4)]
@@ -126,8 +111,8 @@ export function ShiftSection() {
         toast({
           title:
             action === "start"
-              ? `Зміну розпочато (демо) - ${selectedEmployee}`
-              : `Зміну завершено (демо) - ${currentEmployee}`,
+              ? `Зміну розпочато (демо) - ${employeeName}`
+              : `Зміну завершено (демо) - ${employeeName}`,
           description:
             action === "end"
               ? `Відправлено ${shiftData.shift_data?.total_records || 0} записів`
@@ -145,17 +130,11 @@ export function ShiftSection() {
       const result = await postJSON(API_ENDPOINTS.shift, shiftData)
 
       if (result.success) {
-        const newShift = action === "start" ? "active" : "inactive"
-        setCurrentShift(newShift)
-        localStorage.setItem("currentShift", newShift)
-
         if (action === "start") {
-          setCurrentEmployee(selectedEmployee)
-          localStorage.setItem("currentEmployee", selectedEmployee)
+          startShift(employeeName)
           setSelectedEmployee("")
         } else {
-          setCurrentEmployee("")
-          localStorage.removeItem("currentEmployee")
+          endShift()
           localStorage.removeItem("shiftOperations")
           localStorage.removeItem("shiftQC")
           localStorage.removeItem("shiftWarehouse")
@@ -166,7 +145,7 @@ export function ShiftSection() {
           action,
           timestamp: new Date().toLocaleString("uk-UA"),
           status: "success",
-          employee: action === "start" ? selectedEmployee : currentEmployee,
+          employee: employeeName,
         }
 
         const updatedShifts = [shiftRecord, ...recentShifts.slice(0, 4)]
@@ -174,7 +153,7 @@ export function ShiftSection() {
         localStorage.setItem("recentShifts", JSON.stringify(updatedShifts))
 
         toast({
-          title: action === "start" ? `Зміну розпочато - ${selectedEmployee}` : `Зміну завершено - ${currentEmployee}`,
+          title: action === "start" ? `Зміну розпочато - ${employeeName}` : `Зміну завершено - ${employeeName}`,
           description:
             action === "end"
               ? `Відправлено ${shiftData.shift_data?.total_records || 0} записів`
@@ -191,7 +170,7 @@ export function ShiftSection() {
           action,
           timestamp: new Date().toLocaleString("uk-UA"),
           status: "pending",
-          employee: action === "start" ? selectedEmployee : currentEmployee,
+          employee: employeeName,
         }
 
         const updatedShifts = [shiftRecord, ...recentShifts.slice(0, 4)]
