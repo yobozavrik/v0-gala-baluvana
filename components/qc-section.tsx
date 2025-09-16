@@ -2,7 +2,7 @@
 
 import type React from "react"
 
-import { useState, useEffect } from "react"
+import { useState } from "react"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -13,12 +13,13 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
 import { AlertCircle, Settings, CheckCircle, XCircle, Package } from "lucide-react"
 import { postJSON, API_ENDPOINTS, isEndpointConfigured } from "@/lib/api"
+import { useShiftStatus } from "@/components/shift-status-context"
 
 export function QCSection() {
   const [isLoading, setIsLoading] = useState(false)
-  const [currentEmployee, setCurrentEmployee] = useState<string>("")
   const { toast } = useToast()
   const isConfigured = isEndpointConfigured(API_ENDPOINTS.qc)
+  const { currentEmployee } = useShiftStatus()
 
   const [formData, setFormData] = useState({
     operation: "", // додано поле операції
@@ -31,13 +32,6 @@ export function QCSection() {
     defectReason: "",
     notes: "",
   })
-
-  useEffect(() => {
-    const savedEmployee = localStorage.getItem("currentEmployee")
-    if (savedEmployee) {
-      setCurrentEmployee(savedEmployee)
-    }
-  }, [])
 
   const operations = ["Прасування", "Пакування"]
 

@@ -11,13 +11,14 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
 import { AlertCircle, Settings, Scissors } from "lucide-react"
 import { postJSON, API_ENDPOINTS, isEndpointConfigured } from "@/lib/api"
+import { useShiftStatus } from "@/components/shift-status-context"
 
 export function CuttingSection() {
   const [isLoading, setIsLoading] = useState(false)
   const [layerTotal, setLayerTotal] = useState(0)
-  const [currentEmployee, setCurrentEmployee] = useState<string>("")
   const { toast } = useToast()
   const isConfigured = isEndpointConfigured(API_ENDPOINTS.operations)
+  const { currentEmployee } = useShiftStatus()
 
   const [formData, setFormData] = useState({
     orderNumber: "",
@@ -26,13 +27,6 @@ export function CuttingSection() {
     quantity: "",
     notes: "",
   })
-
-  useEffect(() => {
-    const savedEmployee = localStorage.getItem("currentEmployee")
-    if (savedEmployee) {
-      setCurrentEmployee(savedEmployee)
-    }
-  }, [])
 
   useEffect(() => {
     if (formData.orderNumber && formData.layer) {

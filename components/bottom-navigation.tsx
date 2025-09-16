@@ -2,14 +2,15 @@
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Clock, Wrench, CheckCircle, Package, History, Scissors } from "lucide-react"
+import { useShiftStatus } from "@/components/shift-status-context"
 
 interface BottomNavigationProps {
   activeSection: string
   onSectionChange: (section: string) => void
-  isShiftActive: boolean
 }
 
-export function BottomNavigation({ activeSection, onSectionChange, isShiftActive }: BottomNavigationProps) {
+export function BottomNavigation({ activeSection, onSectionChange }: BottomNavigationProps) {
+  const { isShiftActive } = useShiftStatus()
   const sections = [
     {
       id: "shift",
