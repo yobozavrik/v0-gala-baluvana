@@ -7,10 +7,10 @@ import { OperationsSection } from "@/components/operations-section"
 import { QCSection } from "@/components/qc-section"
 import { WarehouseSection } from "@/components/warehouse-section"
 import { HistorySection } from "@/components/history-section"
-import { BottomNavigation } from "@/components/bottom-navigation"
+import { BottomNavigation, type SectionId } from "@/components/bottom-navigation"
 
 export default function HomePage() {
-  const [activeSection, setActiveSection] = useState("shift")
+  const [activeSection, setActiveSection] = useState<SectionId>("shift")
   const [isShiftActive, setIsShiftActive] = useState(false)
 
   useEffect(() => {
@@ -51,8 +51,10 @@ export default function HomePage() {
         return <WarehouseSection />
       case "history":
         return <HistorySection />
-      default:
-        return <ShiftSection />
+      default: {
+        const _exhaustiveCheck: never = activeSection
+        throw new Error(`Unhandled section: ${_exhaustiveCheck}`)
+      }
     }
   }
 

@@ -1,16 +1,24 @@
 "use client"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
+import type { LucideIcon } from "lucide-react"
 import { Clock, Wrench, CheckCircle, Package, History, Scissors } from "lucide-react"
 
+export type SectionId = "shift" | "cutting" | "operations" | "qc" | "warehouse" | "history"
+
 interface BottomNavigationProps {
-  activeSection: string
-  onSectionChange: (section: string) => void
+  activeSection: SectionId
+  onSectionChange: (section: SectionId) => void
   isShiftActive: boolean
 }
 
 export function BottomNavigation({ activeSection, onSectionChange, isShiftActive }: BottomNavigationProps) {
-  const sections = [
+  const sections: Array<{
+    id: SectionId
+    label: string
+    icon: LucideIcon
+    enabled: boolean
+  }> = [
     {
       id: "shift",
       label: "Зміна",
