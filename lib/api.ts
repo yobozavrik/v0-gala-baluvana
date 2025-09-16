@@ -38,7 +38,7 @@ export async function postJSON(url: string, data: any): Promise<ApiResponse> {
 }
 
 export function isEndpointConfigured(endpoint: string): boolean {
-  return endpoint && endpoint.length > 0 && !endpoint.includes("undefined")
+  return endpoint.length > 0 && !endpoint.includes("undefined")
 }
 
 export function isDevelopmentMode(): boolean {

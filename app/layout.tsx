@@ -1,5 +1,5 @@
 import type React from "react"
-import type { Metadata } from "next"
+import type { Metadata, Viewport } from "next"
 import { GeistSans } from "geist/font/sans"
 import { GeistMono } from "geist/font/mono"
 import { Toaster } from "@/components/ui/toaster"
@@ -9,7 +9,13 @@ export const metadata: Metadata = {
   title: "Швейна фабрика - Система управління",
   description: "Telegram Web App для управління швейним виробництвом",
   generator: "v0.app",
-  viewport: "width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no", // додав viewport для мобільних пристроїв
+}
+
+export const viewport: Viewport = {
+  width: "device-width",
+  initialScale: 1,
+  maximumScale: 1,
+  userScalable: false,
 }
 
 export default function RootLayout({
@@ -20,7 +26,6 @@ export default function RootLayout({
   return (
     <html lang="uk">
       <head>
-        <meta name="viewport" content="width=device-width, initial-scale=1, maximum-scale=1, user-scalable=no" />
         <style>{`
 html {
   font-family: ${GeistSans.style.fontFamily};
