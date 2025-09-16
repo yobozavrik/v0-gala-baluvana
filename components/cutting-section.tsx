@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
 import { AlertCircle, Settings, Scissors } from "lucide-react"
 import { postJSON, API_ENDPOINTS, isEndpointConfigured } from "@/lib/api"
+import type { CuttingRecord } from "@/components/shift-section"
 
 export function CuttingSection() {
   const [isLoading, setIsLoading] = useState(false)
@@ -36,11 +37,11 @@ export function CuttingSection() {
 
   useEffect(() => {
     if (formData.orderNumber && formData.layer) {
-      const existingCutting = JSON.parse(localStorage.getItem("shift_cutting") || "[]")
+      const existingCutting = JSON.parse(localStorage.getItem("shift_cutting") || "[]") as CuttingRecord[]
       const layerItems = existingCutting.filter(
-        (item: any) => item.orderNumber === formData.orderNumber && item.layer === formData.layer,
+        (item) => item.orderNumber === formData.orderNumber && item.layer === formData.layer,
       )
-      const total = layerItems.reduce((sum: number, item: any) => sum + item.quantity, 0)
+      const total = layerItems.reduce((sum, item) => sum + item.quantity, 0)
       setLayerTotal(total)
     } else {
       setLayerTotal(0)
@@ -99,7 +100,7 @@ export function CuttingSection() {
 
     setIsLoading(true)
 
-    const cuttingData = {
+    const cuttingData: CuttingRecord = {
       id: Date.now().toString(),
       ...formData,
       size: sizeNum,
@@ -110,7 +111,7 @@ export function CuttingSection() {
     }
 
     try {
-      const existingCutting = JSON.parse(localStorage.getItem("shift_cutting") || "[]")
+      const existingCutting = JSON.parse(localStorage.getItem("shift_cutting") || "[]") as CuttingRecord[]
       existingCutting.push(cuttingData)
       localStorage.setItem("shift_cutting", JSON.stringify(existingCutting))
 
@@ -132,7 +133,7 @@ export function CuttingSection() {
         return
       }
 
-      const result = await postJSON(API_ENDPOINTS.operations, cuttingData)
+      const result = await postJSON<CuttingRecord>(API_ENDPOINTS.operations, cuttingData)
 
       if (result.success) {
         toast({

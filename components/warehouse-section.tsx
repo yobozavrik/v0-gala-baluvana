@@ -13,6 +13,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
 import { AlertCircle, Settings, Package } from "lucide-react"
 import { postJSON, API_ENDPOINTS, isEndpointConfigured } from "@/lib/api"
+import type { WarehouseRecord } from "@/components/shift-section"
 
 export function WarehouseSection() {
   const [isLoading, setIsLoading] = useState(false)
@@ -74,7 +75,7 @@ export function WarehouseSection() {
 
     setIsLoading(true)
 
-    const warehouseData = {
+    const warehouseData: WarehouseRecord = {
       id: Date.now().toString(),
       ...formData,
       quantity: Number.parseInt(formData.quantity),
@@ -83,7 +84,9 @@ export function WarehouseSection() {
     }
 
     try {
-      const existingWarehouse = JSON.parse(localStorage.getItem("shift_warehouse") || "[]")
+      const existingWarehouse = JSON.parse(
+        localStorage.getItem("shift_warehouse") || "[]",
+      ) as WarehouseRecord[]
       existingWarehouse.push(warehouseData)
       localStorage.setItem("shift_warehouse", JSON.stringify(existingWarehouse))
 
@@ -109,7 +112,7 @@ export function WarehouseSection() {
         return
       }
 
-      const result = await postJSON(API_ENDPOINTS.warehouse, warehouseData)
+      const result = await postJSON<WarehouseRecord>(API_ENDPOINTS.warehouse, warehouseData)
 
       if (result.success) {
         toast({

@@ -1,10 +1,13 @@
-interface ApiResponse {
+export interface ApiResponse<T = unknown> {
   success: boolean
-  data?: any
+  data?: T
   error?: string
 }
 
-export async function postJSON(url: string, data: any): Promise<ApiResponse> {
+export async function postJSON<TRequest extends object, TResponse = unknown>(
+  url: string,
+  data: TRequest,
+): Promise<ApiResponse<TResponse>> {
   try {
     // Check if we have the required environment variables
     if (!url || url.includes("undefined")) {
@@ -26,7 +29,7 @@ export async function postJSON(url: string, data: any): Promise<ApiResponse> {
       throw new Error(`HTTP error! status: ${response.status}`)
     }
 
-    const result = await response.json()
+    const result = (await response.json()) as TResponse
     return { success: true, data: result }
   } catch (error) {
     console.error("API request failed:", error)
@@ -38,7 +41,7 @@ export async function postJSON(url: string, data: any): Promise<ApiResponse> {
 }
 
 export function isEndpointConfigured(endpoint: string): boolean {
-  return endpoint && endpoint.length > 0 && !endpoint.includes("undefined")
+  return Boolean(endpoint) && endpoint.length > 0 && !endpoint.includes("undefined")
 }
 
 export function isDevelopmentMode(): boolean {

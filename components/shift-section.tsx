@@ -11,26 +11,93 @@ import { postJSON, API_ENDPOINTS, isEndpointConfigured } from "@/lib/api"
 import { offlineQueue } from "@/lib/offline-queue"
 import { AlertCircle, Settings, User } from "lucide-react"
 
-interface ShiftRecord {
-  action: "start" | "end"
+export type ShiftAction = "start" | "end"
+export type ShiftStatus = "active" | "inactive"
+
+export interface OperationRecord {
+  id: string
+  orderNumber: string
+  layer: string
+  size?: string
+  color?: string
+  operation: string
+  quantity: number
+  notes?: string
   timestamp: string
-  status: string
+  user_id: string
   employee?: string
 }
 
-interface ShiftData {
-  employee: string
-  records: {
-    operations: any[]
-    qc: any[]
-    warehouse: any[]
-  }
+export interface QCRecord {
+  id: string
+  operation: string
+  product: string
+  sku?: string
+  size?: string
+  color?: string
+  totalQty: number
+  acceptedQty: number
+  rejectedQty: number
+  defectReason?: string
+  notes?: string
+  timestamp: string
+  user_id: string
+  employee?: string
+}
+
+export interface WarehouseRecord {
+  id: string
+  product: string
+  sku?: string
+  size?: string
+  color?: string
+  quantity: number
+  packaging?: string
+  location: string
+  receiver?: string
+  notes?: string
+  timestamp: string
+  user_id: string
+}
+
+export interface CuttingRecord {
+  id: string
+  orderNumber: string
+  layer: string
+  size: number
+  quantity: number
+  notes?: string
+  timestamp: string
+  user_id: string
+  type: "cutting"
+}
+
+export interface ShiftSummary {
+  operations: OperationRecord[]
+  qc: QCRecord[]
+  warehouse: WarehouseRecord[]
+  total_records: number
+}
+
+export interface ShiftRequestPayload {
+  action: ShiftAction
+  timestamp: string
+  user_id: string
+  employee?: string
+  shift_data?: ShiftSummary
+}
+
+export interface ShiftRecord {
+  action: ShiftAction
+  timestamp: string
+  status: "success" | "pending" | "demo" | "error"
+  employee?: string
 }
 
 const EMPLOYEES = ["Кравчук", "Кучма", "Ющенко", "Янукович", "Порошенко", "Зеленський"]
 
 export function ShiftSection() {
-  const [currentShift, setCurrentShift] = useState<"active" | "inactive">("inactive")
+  const [currentShift, setCurrentShift] = useState<ShiftStatus>("inactive")
   const [selectedEmployee, setSelectedEmployee] = useState<string>("")
   const [currentEmployee, setCurrentEmployee] = useState<string>("")
   const [isLoading, setIsLoading] = useState(false)
@@ -44,7 +111,7 @@ export function ShiftSection() {
     const savedShift = localStorage.getItem("currentShift")
     const savedEmployee = localStorage.getItem("currentEmployee")
     if (savedShift) {
-      setCurrentShift(savedShift as "active" | "inactive")
+      setCurrentShift(savedShift as ShiftStatus)
     }
     if (savedEmployee) {
       setCurrentEmployee(savedEmployee)
@@ -53,11 +120,15 @@ export function ShiftSection() {
     // Load recent shifts
     const savedShifts = localStorage.getItem("recentShifts")
     if (savedShifts) {
-      setRecentShifts(JSON.parse(savedShifts))
+      try {
+        setRecentShifts(JSON.parse(savedShifts) as ShiftRecord[])
+      } catch (error) {
+        console.error("Failed to parse recent shifts", error)
+      }
     }
   }, [])
 
-  const handleShiftAction = async (action: "start" | "end") => {
+  const handleShiftAction = async (action: ShiftAction) => {
     if (action === "start" && !selectedEmployee) {
       toast({
         title: "Оберіть співробітника",
@@ -69,7 +140,7 @@ export function ShiftSection() {
 
     setIsLoading(true)
 
-    const shiftData: any = {
+    const shiftData: ShiftRequestPayload = {
       action,
       timestamp: new Date().toISOString(),
       user_id: "telegram_user_id",
@@ -82,9 +153,9 @@ export function ShiftSection() {
       localStorage.removeItem("shiftWarehouse")
     } else {
       shiftData.employee = currentEmployee
-      const operations = JSON.parse(localStorage.getItem("shiftOperations") || "[]")
-      const qc = JSON.parse(localStorage.getItem("shiftQC") || "[]")
-      const warehouse = JSON.parse(localStorage.getItem("shiftWarehouse") || "[]")
+      const operations = JSON.parse(localStorage.getItem("shiftOperations") || "[]") as OperationRecord[]
+      const qc = JSON.parse(localStorage.getItem("shiftQC") || "[]") as QCRecord[]
+      const warehouse = JSON.parse(localStorage.getItem("shiftWarehouse") || "[]") as WarehouseRecord[]
 
       shiftData.shift_data = {
         operations,
@@ -142,7 +213,7 @@ export function ShiftSection() {
         return
       }
 
-      const result = await postJSON(API_ENDPOINTS.shift, shiftData)
+      const result = await postJSON<ShiftRequestPayload>(API_ENDPOINTS.shift, shiftData)
 
       if (result.success) {
         const newShift = action === "start" ? "active" : "inactive"

@@ -13,6 +13,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
 import { AlertCircle, Settings } from "lucide-react"
 import { postJSON, API_ENDPOINTS, isEndpointConfigured } from "@/lib/api"
+import type { OperationRecord } from "@/components/shift-section"
 
 export function OperationsSection() {
   const [isLoading, setIsLoading] = useState(false)
@@ -72,7 +73,7 @@ export function OperationsSection() {
 
     setIsLoading(true)
 
-    const operationData = {
+    const operationData: OperationRecord = {
       id: Date.now().toString(),
       ...formData,
       quantity: Number.parseInt(formData.quantity),
@@ -81,7 +82,9 @@ export function OperationsSection() {
     }
 
     try {
-      const existingOperations = JSON.parse(localStorage.getItem("shift_operations") || "[]")
+      const existingOperations = JSON.parse(
+        localStorage.getItem("shift_operations") || "[]",
+      ) as OperationRecord[]
       existingOperations.push(operationData)
       localStorage.setItem("shift_operations", JSON.stringify(existingOperations))
 
@@ -105,7 +108,7 @@ export function OperationsSection() {
         return
       }
 
-      const result = await postJSON(API_ENDPOINTS.operations, operationData)
+      const result = await postJSON<OperationRecord>(API_ENDPOINTS.operations, operationData)
 
       if (result.success) {
         toast({

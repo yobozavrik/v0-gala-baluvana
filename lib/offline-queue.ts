@@ -1,7 +1,7 @@
-interface QueuedRequest {
+interface QueuedRequest<TData = unknown> {
   id: string
   url: string
-  data: any
+  data: TData
   timestamp: number
   retryCount: number
 }
@@ -30,10 +30,10 @@ class OfflineQueue {
     })
   }
 
-  async addRequest(url: string, data: any): Promise<void> {
+  async addRequest<TData>(url: string, data: TData): Promise<void> {
     if (!this.db) await this.init()
 
-    const request: QueuedRequest = {
+    const request: QueuedRequest<TData> = {
       id: Date.now().toString(),
       url,
       data,

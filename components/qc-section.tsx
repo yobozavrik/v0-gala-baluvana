@@ -13,6 +13,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
 import { AlertCircle, Settings, CheckCircle, XCircle, Package } from "lucide-react"
 import { postJSON, API_ENDPOINTS, isEndpointConfigured } from "@/lib/api"
+import type { QCRecord } from "@/components/shift-section"
 
 export function QCSection() {
   const [isLoading, setIsLoading] = useState(false)
@@ -98,7 +99,7 @@ export function QCSection() {
 
     setIsLoading(true)
 
-    const qcData = {
+    const qcData: QCRecord = {
       id: Date.now().toString(),
       ...formData,
       totalQty,
@@ -109,11 +110,12 @@ export function QCSection() {
     }
 
     try {
-      const existingQC = JSON.parse(localStorage.getItem("shift_qc") || "[]")
-      existingQC.push({
+      const existingQC = JSON.parse(localStorage.getItem("shift_qc") || "[]") as QCRecord[]
+      const qcRecord: QCRecord = {
         ...qcData,
-        employee: currentEmployee,
-      })
+        employee: currentEmployee || undefined,
+      }
+      existingQC.push(qcRecord)
       localStorage.setItem("shift_qc", JSON.stringify(existingQC))
 
       if (!isConfigured) {
@@ -138,7 +140,7 @@ export function QCSection() {
         return
       }
 
-      const result = await postJSON(API_ENDPOINTS.qc, qcData)
+      const result = await postJSON<QCRecord>(API_ENDPOINTS.qc, qcData)
 
       if (result.success) {
         toast({
