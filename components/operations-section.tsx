@@ -13,6 +13,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
 import { AlertCircle, Settings } from "lucide-react"
 import { postJSON, API_ENDPOINTS, isEndpointConfigured } from "@/lib/api"
+import { SHIFT_STORAGE_KEYS } from "@/lib/utils"
 
 export function OperationsSection() {
   const [isLoading, setIsLoading] = useState(false)
@@ -81,9 +82,9 @@ export function OperationsSection() {
     }
 
     try {
-      const existingOperations = JSON.parse(localStorage.getItem("shift_operations") || "[]")
+      const existingOperations = JSON.parse(localStorage.getItem(SHIFT_STORAGE_KEYS.operations) || "[]")
       existingOperations.push(operationData)
-      localStorage.setItem("shift_operations", JSON.stringify(existingOperations))
+      localStorage.setItem(SHIFT_STORAGE_KEYS.operations, JSON.stringify(existingOperations))
 
       if (!isConfigured) {
         toast({

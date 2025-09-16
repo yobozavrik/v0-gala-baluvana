@@ -11,10 +11,13 @@ import { Textarea } from "@/components/ui/textarea"
 import { Dialog, DialogContent, DialogHeader, DialogTitle, DialogTrigger } from "@/components/ui/dialog"
 import { useToast } from "@/hooks/use-toast"
 import { Trash2, Edit, Clock, Wrench, CheckCircle, Package, FileText, Scissors } from "lucide-react"
+import { SHIFT_STORAGE_KEYS } from "@/lib/utils"
+
+type ShiftRecordType = keyof typeof SHIFT_STORAGE_KEYS
 
 interface ShiftRecord {
   id: string
-  type: "operations" | "qc" | "warehouse" | "cutting" // додав тип cutting
+  type: ShiftRecordType
   timestamp: string
   data: any
 }
@@ -31,10 +34,10 @@ export function HistorySection() {
   }, [])
 
   const loadRecords = () => {
-    const operations = JSON.parse(localStorage.getItem("shift_operations") || "[]")
-    const qc = JSON.parse(localStorage.getItem("shift_qc") || "[]")
-    const warehouse = JSON.parse(localStorage.getItem("shift_warehouse") || "[]")
-    const cutting = JSON.parse(localStorage.getItem("shift_cutting") || "[]")
+    const operations = JSON.parse(localStorage.getItem(SHIFT_STORAGE_KEYS.operations) || "[]")
+    const qc = JSON.parse(localStorage.getItem(SHIFT_STORAGE_KEYS.qc) || "[]")
+    const warehouse = JSON.parse(localStorage.getItem(SHIFT_STORAGE_KEYS.warehouse) || "[]")
+    const cutting = JSON.parse(localStorage.getItem(SHIFT_STORAGE_KEYS.cutting) || "[]")
 
     const allRecords: ShiftRecord[] = [
       ...operations
@@ -58,7 +61,7 @@ export function HistorySection() {
   const deleteRecord = (record: ShiftRecord) => {
     if (!record || !record.type) return
 
-    const storageKey = `shift_${record.type}`
+    const storageKey = SHIFT_STORAGE_KEYS[record.type]
     const currentRecords = JSON.parse(localStorage.getItem(storageKey) || "[]")
     const updatedRecords = currentRecords.filter((r: any) => r.id !== record.id)
     localStorage.setItem(storageKey, JSON.stringify(updatedRecords))
@@ -81,7 +84,7 @@ export function HistorySection() {
   const saveEdit = () => {
     if (!editingRecord || !editingRecord.type) return
 
-    const storageKey = `shift_${editingRecord.type}`
+    const storageKey = SHIFT_STORAGE_KEYS[editingRecord.type]
     const currentRecords = JSON.parse(localStorage.getItem(storageKey) || "[]")
     const updatedRecords = currentRecords.map((r: any) =>
       r.id === editingRecord.id ? { ...editForm, id: editingRecord.id, timestamp: editingRecord.timestamp } : r,

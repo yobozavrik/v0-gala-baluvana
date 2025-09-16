@@ -13,6 +13,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
 import { AlertCircle, Settings, Package } from "lucide-react"
 import { postJSON, API_ENDPOINTS, isEndpointConfigured } from "@/lib/api"
+import { SHIFT_STORAGE_KEYS } from "@/lib/utils"
 
 export function WarehouseSection() {
   const [isLoading, setIsLoading] = useState(false)
@@ -83,9 +84,9 @@ export function WarehouseSection() {
     }
 
     try {
-      const existingWarehouse = JSON.parse(localStorage.getItem("shift_warehouse") || "[]")
+      const existingWarehouse = JSON.parse(localStorage.getItem(SHIFT_STORAGE_KEYS.warehouse) || "[]")
       existingWarehouse.push(warehouseData)
-      localStorage.setItem("shift_warehouse", JSON.stringify(existingWarehouse))
+      localStorage.setItem(SHIFT_STORAGE_KEYS.warehouse, JSON.stringify(existingWarehouse))
 
       if (!isConfigured) {
         toast({

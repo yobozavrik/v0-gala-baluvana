@@ -8,6 +8,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useToast } from "@/hooks/use-toast"
 import { postJSON, API_ENDPOINTS, isEndpointConfigured } from "@/lib/api"
+import { SHIFT_STORAGE_KEYS } from "@/lib/utils"
 import { offlineQueue } from "@/lib/offline-queue"
 import { AlertCircle, Settings, User } from "lucide-react"
 
@@ -77,14 +78,14 @@ export function ShiftSection() {
 
     if (action === "start") {
       shiftData.employee = selectedEmployee
-      localStorage.removeItem("shiftOperations")
-      localStorage.removeItem("shiftQC")
-      localStorage.removeItem("shiftWarehouse")
+      localStorage.removeItem(SHIFT_STORAGE_KEYS.operations)
+      localStorage.removeItem(SHIFT_STORAGE_KEYS.qc)
+      localStorage.removeItem(SHIFT_STORAGE_KEYS.warehouse)
     } else {
       shiftData.employee = currentEmployee
-      const operations = JSON.parse(localStorage.getItem("shiftOperations") || "[]")
-      const qc = JSON.parse(localStorage.getItem("shiftQC") || "[]")
-      const warehouse = JSON.parse(localStorage.getItem("shiftWarehouse") || "[]")
+      const operations = JSON.parse(localStorage.getItem(SHIFT_STORAGE_KEYS.operations) || "[]")
+      const qc = JSON.parse(localStorage.getItem(SHIFT_STORAGE_KEYS.qc) || "[]")
+      const warehouse = JSON.parse(localStorage.getItem(SHIFT_STORAGE_KEYS.warehouse) || "[]")
 
       shiftData.shift_data = {
         operations,
@@ -107,9 +108,9 @@ export function ShiftSection() {
         } else {
           setCurrentEmployee("")
           localStorage.removeItem("currentEmployee")
-          localStorage.removeItem("shiftOperations")
-          localStorage.removeItem("shiftQC")
-          localStorage.removeItem("shiftWarehouse")
+          localStorage.removeItem(SHIFT_STORAGE_KEYS.operations)
+          localStorage.removeItem(SHIFT_STORAGE_KEYS.qc)
+          localStorage.removeItem(SHIFT_STORAGE_KEYS.warehouse)
         }
 
         const shiftRecord: ShiftRecord = {
@@ -156,9 +157,9 @@ export function ShiftSection() {
         } else {
           setCurrentEmployee("")
           localStorage.removeItem("currentEmployee")
-          localStorage.removeItem("shiftOperations")
-          localStorage.removeItem("shiftQC")
-          localStorage.removeItem("shiftWarehouse")
+          localStorage.removeItem(SHIFT_STORAGE_KEYS.operations)
+          localStorage.removeItem(SHIFT_STORAGE_KEYS.qc)
+          localStorage.removeItem(SHIFT_STORAGE_KEYS.warehouse)
         }
 
         // Add to recent shifts

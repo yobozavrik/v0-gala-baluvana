@@ -11,6 +11,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
 import { AlertCircle, Settings, Scissors } from "lucide-react"
 import { postJSON, API_ENDPOINTS, isEndpointConfigured } from "@/lib/api"
+import { SHIFT_STORAGE_KEYS } from "@/lib/utils"
 
 export function CuttingSection() {
   const [isLoading, setIsLoading] = useState(false)
@@ -36,7 +37,7 @@ export function CuttingSection() {
 
   useEffect(() => {
     if (formData.orderNumber && formData.layer) {
-      const existingCutting = JSON.parse(localStorage.getItem("shift_cutting") || "[]")
+      const existingCutting = JSON.parse(localStorage.getItem(SHIFT_STORAGE_KEYS.cutting) || "[]")
       const layerItems = existingCutting.filter(
         (item: any) => item.orderNumber === formData.orderNumber && item.layer === formData.layer,
       )
@@ -110,9 +111,9 @@ export function CuttingSection() {
     }
 
     try {
-      const existingCutting = JSON.parse(localStorage.getItem("shift_cutting") || "[]")
+      const existingCutting = JSON.parse(localStorage.getItem(SHIFT_STORAGE_KEYS.cutting) || "[]")
       existingCutting.push(cuttingData)
-      localStorage.setItem("shift_cutting", JSON.stringify(existingCutting))
+      localStorage.setItem(SHIFT_STORAGE_KEYS.cutting, JSON.stringify(existingCutting))
 
       if (!isConfigured) {
         toast({

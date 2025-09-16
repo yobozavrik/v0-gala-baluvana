@@ -13,6 +13,7 @@ import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
 import { AlertCircle, Settings, CheckCircle, XCircle, Package } from "lucide-react"
 import { postJSON, API_ENDPOINTS, isEndpointConfigured } from "@/lib/api"
+import { SHIFT_STORAGE_KEYS } from "@/lib/utils"
 
 export function QCSection() {
   const [isLoading, setIsLoading] = useState(false)
@@ -109,12 +110,12 @@ export function QCSection() {
     }
 
     try {
-      const existingQC = JSON.parse(localStorage.getItem("shift_qc") || "[]")
+      const existingQC = JSON.parse(localStorage.getItem(SHIFT_STORAGE_KEYS.qc) || "[]")
       existingQC.push({
         ...qcData,
         employee: currentEmployee,
       })
-      localStorage.setItem("shift_qc", JSON.stringify(existingQC))
+      localStorage.setItem(SHIFT_STORAGE_KEYS.qc, JSON.stringify(existingQC))
 
       if (!isConfigured) {
         toast({
