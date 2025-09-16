@@ -1,8 +1,12 @@
 "use client"
 
-import type React from "react"
+import { useEffect, useState } from "react"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { AlertCircle, Settings } from "lucide-react"
+import { Controller, useForm, type FieldErrors } from "react-hook-form"
+import { z } from "zod"
 
-import { useState, useEffect } from "react"
+import { FormFieldError } from "@/components/form-field-error"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -11,24 +15,78 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
-import { AlertCircle, Settings } from "lucide-react"
-import { postJSON, API_ENDPOINTS, isEndpointConfigured } from "@/lib/api"
+import { API_ENDPOINTS, isEndpointConfigured, postJSON } from "@/lib/api"
+import { getFirstErrorMessage } from "@/lib/forms"
+
+const operationOptions = ["Оверлок", "Прямоточка", "Розпошив"] as const
+const sizeOptions = ["XS", "S", "M", "L", "XL", "XXL"] as const
+const colorOptions = ["Білий", "Чорний", "Сірий", "Синій", "Червоний", "Зелений"] as const
+
+const operationsSchema = z.object({
+  orderNumber: z.string().trim().min(1, "Номер замовлення обов'язковий"),
+  layer: z.string().trim().min(1, "Настіл обов'язковий"),
+  size: z
+    .string()
+    .trim()
+    .optional()
+    .refine((value) => !value || sizeOptions.includes(value as (typeof sizeOptions)[number]), {
+      message: "Оберіть коректний розмір",
+    })
+    .default(""),
+  color: z
+    .string()
+    .trim()
+    .optional()
+    .refine((value) => !value || colorOptions.includes(value as (typeof colorOptions)[number]), {
+      message: "Оберіть коректний колір",
+    })
+    .default(""),
+  operation: z
+    .string()
+    .trim()
+    .min(1, "Оберіть операцію")
+    .refine((value) => operationOptions.includes(value as (typeof operationOptions)[number]), {
+      message: "Оберіть операцію",
+    }),
+  quantity: z
+    .string()
+    .trim()
+    .min(1, "Вкажіть кількість")
+    .refine((value) => /^[0-9]+$/.test(value), { message: "Кількість повинна бути цілим числом" })
+    .refine((value) => Number.parseInt(value, 10) > 0, { message: "Кількість повинна бути додатним числом" }),
+  notes: z.string().trim().max(500, "Примітки мають містити до 500 символів").optional().default(""),
+})
+
+type OperationsFormValues = z.infer<typeof operationsSchema>
+
+const defaultValues: OperationsFormValues = {
+  orderNumber: "",
+  layer: "",
+  size: "",
+  color: "",
+  operation: "",
+  quantity: "",
+  notes: "",
+}
 
 export function OperationsSection() {
-  const [isLoading, setIsLoading] = useState(false)
   const [currentEmployee, setCurrentEmployee] = useState<string>("")
   const { toast } = useToast()
   const isConfigured = isEndpointConfigured(API_ENDPOINTS.operations)
 
-  const [formData, setFormData] = useState({
-    orderNumber: "",
-    layer: "",
-    size: "",
-    color: "",
-    operation: "",
-    quantity: "",
-    notes: "",
+  const form = useForm<OperationsFormValues>({
+    resolver: zodResolver(operationsSchema),
+    defaultValues,
+    mode: "onChange",
   })
+
+  const {
+    control,
+    handleSubmit,
+    register,
+    reset,
+    formState: { errors, isSubmitting, isValid },
+  } = form
 
   useEffect(() => {
     const savedEmployee = localStorage.getItem("currentEmployee")
@@ -37,45 +95,17 @@ export function OperationsSection() {
     }
   }, [])
 
-  const operations = ["Оверлок", "Прямоточка", "Розпошив"]
-
-  const sizes = ["XS", "S", "M", "L", "XL", "XXL"]
-  const colors = ["Білий", "Чорний", "Сірий", "Синій", "Червоний", "Зелений"]
-
-  const getRequiredFieldsStatus = () => {
-    const missingFields = []
-    if (!formData.orderNumber) missingFields.push("Номер замовлення")
-    if (!formData.layer) missingFields.push("Настіл")
-    if (!formData.operation) missingFields.push("Операція")
-    if (!formData.quantity) missingFields.push("Кількість")
-
-    return {
-      isValid: missingFields.length === 0,
-      missingFields,
-    }
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    const { isValid, missingFields } = getRequiredFieldsStatus()
-
-    if (!isValid) {
-      const employeeName = currentEmployee || "швея"
-      toast({
-        title: `Шановна ${employeeName}`,
-        description: `Неможливо зробити запис. Заповніть поля: ${missingFields.join(", ")}`,
-        variant: "destructive",
-      })
-      return
-    }
-
-    setIsLoading(true)
-
+  const handleValidSubmit = async (values: OperationsFormValues) => {
+    const quantityNum = Number.parseInt(values.quantity, 10)
     const operationData = {
       id: Date.now().toString(),
-      ...formData,
-      quantity: Number.parseInt(formData.quantity),
+      orderNumber: values.orderNumber.trim(),
+      layer: values.layer.trim(),
+      size: values.size?.trim() ?? "",
+      color: values.color?.trim() ?? "",
+      operation: values.operation,
+      quantity: quantityNum,
+      notes: values.notes?.trim() ?? "",
       timestamp: new Date().toISOString(),
       user_id: "telegram_user_id",
     }
@@ -88,20 +118,10 @@ export function OperationsSection() {
       if (!isConfigured) {
         toast({
           title: "Операцію записано (демо)",
-          description: `Замовлення ${formData.orderNumber}, Настіл ${formData.layer}: ${formData.quantity} шт.`,
+          description: `Замовлення ${operationData.orderNumber}, Настіл ${operationData.layer}: ${operationData.quantity} шт.`,
         })
 
-        setFormData({
-          orderNumber: "",
-          layer: "",
-          size: "",
-          color: "",
-          operation: "",
-          quantity: "",
-          notes: "",
-        })
-
-        setIsLoading(false)
+        reset(defaultValues)
         return
       }
 
@@ -110,18 +130,9 @@ export function OperationsSection() {
       if (result.success) {
         toast({
           title: "Операцію записано",
-          description: `Замовлення ${formData.orderNumber}, Настіл ${formData.layer}: ${formData.quantity} шт.`,
+          description: `Замовлення ${operationData.orderNumber}, Настіл ${operationData.layer}: ${operationData.quantity} шт.`,
         })
-
-        setFormData({
-          orderNumber: "",
-          layer: "",
-          size: "",
-          color: "",
-          operation: "",
-          quantity: "",
-          notes: "",
-        })
+        reset(defaultValues)
       } else {
         toast({
           title: "Запит додано до черги",
@@ -134,12 +145,22 @@ export function OperationsSection() {
         description: "Спробуйте ще раз пізніше",
         variant: "destructive",
       })
-    } finally {
-      setIsLoading(false)
     }
   }
 
-  const { isValid } = getRequiredFieldsStatus()
+  const handleInvalidSubmit = (formErrors: FieldErrors<OperationsFormValues>) => {
+    const employeeName = currentEmployee || "швея"
+    const message =
+      getFirstErrorMessage(formErrors) ?? "Неможливо зробити запис. Перевірте правильність заповнення форми"
+
+    toast({
+      title: `Шановна ${employeeName}`,
+      description: message,
+      variant: "destructive",
+    })
+  }
+
+  const onSubmit = handleSubmit(handleValidSubmit, handleInvalidSubmit)
 
   return (
     <div className="space-y-4">
@@ -158,106 +179,105 @@ export function OperationsSection() {
           <CardTitle>Запис операцій</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={onSubmit} className="space-y-4" noValidate>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="orderNumber">Номер замовлення *</Label>
-                <Input
-                  id="orderNumber"
-                  value={formData.orderNumber}
-                  onChange={(e) => setFormData({ ...formData, orderNumber: e.target.value })}
-                  placeholder="Номер замовлення"
-                />
+                <Input id="orderNumber" placeholder="Номер замовлення" {...register("orderNumber")} />
+                <FormFieldError message={errors.orderNumber?.message} className="mt-1" />
               </div>
               <div>
                 <Label htmlFor="layer">Настіл *</Label>
-                <Input
-                  id="layer"
-                  value={formData.layer}
-                  onChange={(e) => setFormData({ ...formData, layer: e.target.value })}
-                  placeholder="Номер настилу"
-                />
+                <Input id="layer" placeholder="Номер настилу" {...register("layer")} />
+                <FormFieldError message={errors.layer?.message} className="mt-1" />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="size">Розмір</Label>
-                <Select value={formData.size} onValueChange={(value) => setFormData({ ...formData, size: value })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Оберіть розмір" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sizes.map((size) => (
-                      <SelectItem key={size} value={size}>
-                        {size}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Controller
+                  control={control}
+                  name="size"
+                  render={({ field }) => (
+                    <Select value={field.value || undefined} onValueChange={field.onChange}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Оберіть розмір" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {sizeOptions.map((size) => (
+                          <SelectItem key={size} value={size}>
+                            {size}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                <FormFieldError message={errors.size?.message} className="mt-1" />
               </div>
               <div>
                 <Label htmlFor="color">Колір</Label>
-                <Select value={formData.color} onValueChange={(value) => setFormData({ ...formData, color: value })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Оберіть колір" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {colors.map((color) => (
-                      <SelectItem key={color} value={color}>
-                        {color}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Controller
+                  control={control}
+                  name="color"
+                  render={({ field }) => (
+                    <Select value={field.value || undefined} onValueChange={field.onChange}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Оберіть колір" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {colorOptions.map((color) => (
+                          <SelectItem key={color} value={color}>
+                            {color}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                <FormFieldError message={errors.color?.message} className="mt-1" />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="operation">Операція *</Label>
-                <Select
-                  value={formData.operation}
-                  onValueChange={(value) => setFormData({ ...formData, operation: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Оберіть операцію" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {operations.map((operation) => (
-                      <SelectItem key={operation} value={operation}>
-                        {operation}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Controller
+                  control={control}
+                  name="operation"
+                  render={({ field }) => (
+                    <Select value={field.value || undefined} onValueChange={field.onChange}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Оберіть операцію" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {operationOptions.map((operation) => (
+                          <SelectItem key={operation} value={operation}>
+                            {operation}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                <FormFieldError message={errors.operation?.message} className="mt-1" />
               </div>
               <div>
                 <Label htmlFor="quantity">Кількість *</Label>
-                <Input
-                  id="quantity"
-                  type="number"
-                  min="1"
-                  value={formData.quantity}
-                  onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                  placeholder="0"
-                />
+                <Input id="quantity" type="number" min="1" placeholder="0" {...register("quantity")} />
+                <FormFieldError message={errors.quantity?.message} className="mt-1" />
               </div>
             </div>
 
             <div>
               <Label htmlFor="notes">Примітки</Label>
-              <Textarea
-                id="notes"
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                placeholder="Додаткова інформація..."
-                rows={3}
-              />
+              <Textarea id="notes" placeholder="Додаткова інформація..." rows={3} {...register("notes")} />
+              <FormFieldError message={errors.notes?.message} className="mt-1" />
             </div>
 
-            <Button type="submit" disabled={isLoading || !isValid} className="w-full">
-              {isLoading ? "Записую..." : "Записати операцію"}
+            <Button type="submit" disabled={isSubmitting || !isValid} className="w-full">
+              {isSubmitting ? "Записую..." : "Записати операцію"}
             </Button>
           </form>
         </CardContent>

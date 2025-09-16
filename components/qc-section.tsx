@@ -1,8 +1,12 @@
 "use client"
 
-import type React from "react"
+import { useEffect, useState } from "react"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { AlertCircle, Settings, CheckCircle, XCircle, Package } from "lucide-react"
+import { Controller, useForm, type FieldErrors } from "react-hook-form"
+import { z } from "zod"
 
-import { useState, useEffect } from "react"
+import { FormFieldError } from "@/components/form-field-error"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -11,26 +15,131 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
-import { AlertCircle, Settings, CheckCircle, XCircle, Package } from "lucide-react"
-import { postJSON, API_ENDPOINTS, isEndpointConfigured } from "@/lib/api"
+import { API_ENDPOINTS, isEndpointConfigured, postJSON } from "@/lib/api"
+import { getFirstErrorMessage } from "@/lib/forms"
+
+const qcOperations = ["Прасування", "Пакування"] as const
+const defectReasons = [
+  "Неправильний шов",
+  "Пошкодження тканини",
+  "Неправильний розмір",
+  "Забруднення",
+  "Неправильний колір",
+  "Відсутні деталі",
+  "Інше",
+] as const
+const sizeOptions = ["XS", "S", "M", "L", "XL", "XXL"] as const
+const colorOptions = ["Білий", "Чорний", "Сірий", "Синій", "Червоний", "Зелений"] as const
+
+const qcSchema = z
+  .object({
+    operation: z
+      .string()
+      .trim()
+      .min(1, "Оберіть операцію")
+      .refine((value) => qcOperations.includes(value as (typeof qcOperations)[number]), {
+        message: "Оберіть операцію",
+      }),
+    product: z.string().trim().min(1, "Вкажіть товар"),
+    sku: z.string().trim().optional().default(""),
+    size: z
+      .string()
+      .trim()
+      .optional()
+      .refine((value) => !value || sizeOptions.includes(value as (typeof sizeOptions)[number]), {
+        message: "Оберіть коректний розмір",
+      })
+      .default(""),
+    color: z
+      .string()
+      .trim()
+      .optional()
+      .refine((value) => !value || colorOptions.includes(value as (typeof colorOptions)[number]), {
+        message: "Оберіть коректний колір",
+      })
+      .default(""),
+    totalQty: z
+      .string()
+      .trim()
+      .min(1, "Вкажіть загальну кількість")
+      .refine((value) => /^[0-9]+$/.test(value), { message: "Загальна кількість повинна бути числом" })
+      .refine((value) => Number.parseInt(value, 10) > 0, {
+        message: "Загальна кількість повинна бути більшою за нуль",
+      }),
+    rejectedQty: z
+      .string()
+      .trim()
+      .optional()
+      .refine((value) => !value || /^[0-9]+$/.test(value), { message: "Брак повинен бути числом" })
+      .default(""),
+    defectReason: z
+      .string()
+      .trim()
+      .optional()
+      .refine((value) => !value || defectReasons.includes(value as (typeof defectReasons)[number]), {
+        message: "Оберіть причину браку",
+      })
+      .default(""),
+    notes: z.string().trim().max(500, "Примітки мають містити до 500 символів").optional().default(""),
+  })
+  .superRefine((data, ctx) => {
+    const total = Number.parseInt(data.totalQty, 10)
+    const rejected = Number.parseInt(data.rejectedQty || "0", 10)
+
+    if (rejected > total) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Брак не може перевищувати загальну кількість",
+        path: ["rejectedQty"],
+      })
+    }
+
+    if (rejected > 0 && !data.defectReason) {
+      ctx.addIssue({
+        code: z.ZodIssueCode.custom,
+        message: "Оберіть причину браку",
+        path: ["defectReason"],
+      })
+    }
+  })
+
+type QCFormValues = z.infer<typeof qcSchema>
+
+const defaultValues: QCFormValues = {
+  operation: "",
+  product: "",
+  sku: "",
+  size: "",
+  color: "",
+  totalQty: "",
+  rejectedQty: "",
+  defectReason: "",
+  notes: "",
+}
 
 export function QCSection() {
-  const [isLoading, setIsLoading] = useState(false)
   const [currentEmployee, setCurrentEmployee] = useState<string>("")
   const { toast } = useToast()
   const isConfigured = isEndpointConfigured(API_ENDPOINTS.qc)
 
-  const [formData, setFormData] = useState({
-    operation: "", // додано поле операції
-    product: "",
-    sku: "",
-    size: "",
-    color: "",
-    totalQty: "", // змінено на загальну кількість
-    rejectedQty: "",
-    defectReason: "",
-    notes: "",
+  const form = useForm<QCFormValues>({
+    resolver: zodResolver(qcSchema),
+    defaultValues,
+    mode: "onChange",
   })
+
+  const {
+    control,
+    handleSubmit,
+    register,
+    reset,
+    watch,
+    formState: { errors, isSubmitting, isValid },
+  } = form
+
+  const totalQtyValue = Number.parseInt(watch("totalQty") || "0", 10) || 0
+  const rejectedQtyValue = Number.parseInt(watch("rejectedQty") || "0", 10) || 0
+  const acceptedQty = Math.max(totalQtyValue - rejectedQtyValue, 0)
 
   useEffect(() => {
     const savedEmployee = localStorage.getItem("currentEmployee")
@@ -39,71 +148,23 @@ export function QCSection() {
     }
   }, [])
 
-  const operations = ["Прасування", "Пакування"]
-
-  const defectReasons = [
-    "Неправильний шов",
-    "Пошкодження тканини",
-    "Неправильний розмір",
-    "Забруднення",
-    "Неправильний колір",
-    "Відсутні деталі",
-    "Інше",
-  ]
-
-  const sizes = ["XS", "S", "M", "L", "XL", "XXL"]
-  const colors = ["Білий", "Чорний", "Сірий", "Синій", "Червоний", "Зелений"]
-
-  const totalQty = Number.parseInt(formData.totalQty) || 0
-  const rejectedQty = Number.parseInt(formData.rejectedQty) || 0
-  const acceptedQty = totalQty - rejectedQty
-
-  const getRequiredFieldsStatus = () => {
-    const missingFields = []
-    if (!formData.operation) missingFields.push("Операція")
-    if (!formData.product) missingFields.push("Товар")
-    if (!formData.totalQty || totalQty === 0) missingFields.push("Загальна кількість")
-    if (rejectedQty > 0 && !formData.defectReason) missingFields.push("Причина браку")
-
-    return {
-      isValid: missingFields.length === 0,
-      missingFields,
-    }
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    const { isValid, missingFields } = getRequiredFieldsStatus()
-
-    if (!isValid) {
-      const employeeName = currentEmployee || "швея"
-      toast({
-        title: `Шановна ${employeeName}`,
-        description: `Неможливо зробити запис. Заповніть поля: ${missingFields.join(", ")}`,
-        variant: "destructive",
-      })
-      return
-    }
-
-    if (rejectedQty > totalQty) {
-      const employeeName = currentEmployee || "швея"
-      toast({
-        title: `Шановна ${employeeName}`,
-        description: "Неможливо зробити запис. Брак не може перевищувати загальну кількість",
-        variant: "destructive",
-      })
-      return
-    }
-
-    setIsLoading(true)
+  const handleValidSubmit = async (values: QCFormValues) => {
+    const totalQtyNum = Number.parseInt(values.totalQty, 10)
+    const rejectedQtyNum = Number.parseInt(values.rejectedQty || "0", 10)
+    const acceptedQtyNum = totalQtyNum - rejectedQtyNum
 
     const qcData = {
       id: Date.now().toString(),
-      ...formData,
-      totalQty,
-      acceptedQty,
-      rejectedQty,
+      operation: values.operation,
+      product: values.product.trim(),
+      sku: values.sku?.trim() ?? "",
+      size: values.size?.trim() ?? "",
+      color: values.color?.trim() ?? "",
+      totalQty: totalQtyNum,
+      acceptedQty: acceptedQtyNum,
+      rejectedQty: rejectedQtyNum,
+      defectReason: values.defectReason?.trim() ?? "",
+      notes: values.notes?.trim() ?? "",
       timestamp: new Date().toISOString(),
       user_id: "telegram_user_id",
     }
@@ -119,22 +180,10 @@ export function QCSection() {
       if (!isConfigured) {
         toast({
           title: "Контроль якості записано (демо)",
-          description: `${formData.operation}: Загалом ${totalQty}, Прийнято ${acceptedQty}, Брак ${rejectedQty}`,
+          description: `${qcData.operation}: Загалом ${qcData.totalQty}, Прийнято ${qcData.acceptedQty}, Брак ${qcData.rejectedQty}`,
         })
 
-        setFormData({
-          operation: "",
-          product: "",
-          sku: "",
-          size: "",
-          color: "",
-          totalQty: "",
-          rejectedQty: "",
-          defectReason: "",
-          notes: "",
-        })
-
-        setIsLoading(false)
+        reset(defaultValues)
         return
       }
 
@@ -143,20 +192,9 @@ export function QCSection() {
       if (result.success) {
         toast({
           title: "Контроль якості записано",
-          description: `${formData.operation}: Загалом ${totalQty}, Прийнято ${acceptedQty}, Брак ${rejectedQty}`,
+          description: `${qcData.operation}: Загалом ${qcData.totalQty}, Прийнято ${qcData.acceptedQty}, Брак ${qcData.rejectedQty}`,
         })
-
-        setFormData({
-          operation: "",
-          product: "",
-          sku: "",
-          size: "",
-          color: "",
-          totalQty: "",
-          rejectedQty: "",
-          defectReason: "",
-          notes: "",
-        })
+        reset(defaultValues)
       } else {
         toast({
           title: "Запит додано до черги",
@@ -169,12 +207,22 @@ export function QCSection() {
         description: "Спробуйте ще раз пізніше",
         variant: "destructive",
       })
-    } finally {
-      setIsLoading(false)
     }
   }
 
-  const { isValid } = getRequiredFieldsStatus()
+  const handleInvalidSubmit = (formErrors: FieldErrors<QCFormValues>) => {
+    const employeeName = currentEmployee || "швея"
+    const message =
+      getFirstErrorMessage(formErrors) ?? "Неможливо зробити запис. Перевірте правильність заповнення форми"
+
+    toast({
+      title: `Шановна ${employeeName}`,
+      description: message,
+      variant: "destructive",
+    })
+  }
+
+  const onSubmit = handleSubmit(handleValidSubmit, handleInvalidSubmit)
 
   return (
     <div className="space-y-4">
@@ -193,171 +241,167 @@ export function QCSection() {
           <CardTitle>Контроль якості</CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={onSubmit} className="space-y-4" noValidate>
             <div>
               <Label htmlFor="operation">Операція *</Label>
-              <Select
-                value={formData.operation}
-                onValueChange={(value) => setFormData({ ...formData, operation: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Оберіть операцію" />
-                </SelectTrigger>
-                <SelectContent>
-                  {operations.map((operation) => (
-                    <SelectItem key={operation} value={operation}>
-                      <div className="flex items-center gap-2">
-                        <Package className="h-4 w-4" />
-                        {operation}
-                      </div>
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Controller
+                control={control}
+                name="operation"
+                render={({ field }) => (
+                  <Select value={field.value || undefined} onValueChange={field.onChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Оберіть операцію" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {qcOperations.map((operation) => (
+                        <SelectItem key={operation} value={operation}>
+                          <div className="flex items-center gap-2">
+                            <Package className="h-4 w-4" />
+                            {operation}
+                          </div>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              <FormFieldError message={errors.operation?.message} className="mt-1" />
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="product">Товар *</Label>
-                <Input
-                  id="product"
-                  value={formData.product}
-                  onChange={(e) => setFormData({ ...formData, product: e.target.value })}
-                  placeholder="Назва товару"
-                />
+                <Input id="product" placeholder="Назва товару" {...register("product")} />
+                <FormFieldError message={errors.product?.message} className="mt-1" />
               </div>
               <div>
                 <Label htmlFor="sku">SKU</Label>
-                <Input
-                  id="sku"
-                  value={formData.sku}
-                  onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-                  placeholder="Артикул"
-                />
+                <Input id="sku" placeholder="Артикул" {...register("sku")} />
+                <FormFieldError message={errors.sku?.message} className="mt-1" />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="size">Розмір</Label>
-                <Select value={formData.size} onValueChange={(value) => setFormData({ ...formData, size: value })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Оберіть розмір" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sizes.map((size) => (
-                      <SelectItem key={size} value={size}>
-                        {size}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Controller
+                  control={control}
+                  name="size"
+                  render={({ field }) => (
+                    <Select value={field.value || undefined} onValueChange={field.onChange}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Оберіть розмір" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {sizeOptions.map((size) => (
+                          <SelectItem key={size} value={size}>
+                            {size}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                <FormFieldError message={errors.size?.message} className="mt-1" />
               </div>
               <div>
                 <Label htmlFor="color">Колір</Label>
-                <Select value={formData.color} onValueChange={(value) => setFormData({ ...formData, color: value })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Оберіть колір" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {colors.map((color) => (
-                      <SelectItem key={color} value={color}>
-                        {color}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Controller
+                  control={control}
+                  name="color"
+                  render={({ field }) => (
+                    <Select value={field.value || undefined} onValueChange={field.onChange}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Оберіть колір" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {colorOptions.map((color) => (
+                          <SelectItem key={color} value={color}>
+                            {color}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                <FormFieldError message={errors.color?.message} className="mt-1" />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="totalQty">Загальна кількість *</Label>
-                <Input
-                  id="totalQty"
-                  type="number"
-                  min="0"
-                  value={formData.totalQty}
-                  onChange={(e) => setFormData({ ...formData, totalQty: e.target.value })}
-                  placeholder="0"
-                />
+                <Input id="totalQty" type="number" min="0" placeholder="0" {...register("totalQty")} />
+                <FormFieldError message={errors.totalQty?.message} className="mt-1" />
               </div>
               <div>
                 <Label htmlFor="rejectedQty" className="flex items-center gap-2">
                   <XCircle className="h-4 w-4 text-red-600" />
                   Брак
                 </Label>
-                <Input
-                  id="rejectedQty"
-                  type="number"
-                  min="0"
-                  max={totalQty}
-                  value={formData.rejectedQty}
-                  onChange={(e) => setFormData({ ...formData, rejectedQty: e.target.value })}
-                  placeholder="0"
-                />
+                <Input id="rejectedQty" type="number" min="0" placeholder="0" {...register("rejectedQty")} />
+                <FormFieldError message={errors.rejectedQty?.message} className="mt-1" />
               </div>
             </div>
 
-            {rejectedQty > 0 && (
+            {rejectedQtyValue > 0 && (
               <div>
                 <Label htmlFor="defectReason">Причина браку *</Label>
-                <Select
-                  value={formData.defectReason}
-                  onValueChange={(value) => setFormData({ ...formData, defectReason: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Оберіть причину" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {defectReasons.map((reason) => (
-                      <SelectItem key={reason} value={reason}>
-                        {reason}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Controller
+                  control={control}
+                  name="defectReason"
+                  render={({ field }) => (
+                    <Select value={field.value || undefined} onValueChange={field.onChange}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Оберіть причину" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {defectReasons.map((reason) => (
+                          <SelectItem key={reason} value={reason}>
+                            {reason}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                <FormFieldError message={errors.defectReason?.message} className="mt-1" />
               </div>
             )}
 
             <div>
               <Label htmlFor="notes">Примітки</Label>
-              <Textarea
-                id="notes"
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                placeholder="Додаткова інформація..."
-                rows={3}
-              />
+              <Textarea id="notes" placeholder="Додаткова інформація..." rows={3} {...register("notes")} />
+              <FormFieldError message={errors.notes?.message} className="mt-1" />
             </div>
 
-            {totalQty > 0 && (
-              <div className="p-3 bg-muted rounded-lg space-y-1">
-                <div className="flex justify-between items-center">
+            {totalQtyValue > 0 && (
+              <div className="space-y-1 rounded-lg bg-muted p-3">
+                <div className="flex items-center justify-between">
                   <span className="text-sm font-medium">Загалом:</span>
-                  <span className="font-medium">{totalQty} шт.</span>
+                  <span className="font-medium">{totalQtyValue} шт.</span>
                 </div>
-                <div className="flex justify-between items-center text-green-600">
-                  <span className="text-sm flex items-center gap-1">
+                <div className="flex items-center justify-between text-green-600">
+                  <span className="flex items-center gap-1 text-sm">
                     <CheckCircle className="h-3 w-3" />
                     Прийнято:
                   </span>
                   <span>{acceptedQty} шт.</span>
                 </div>
-                {rejectedQty > 0 && (
-                  <div className="flex justify-between items-center text-red-600">
-                    <span className="text-sm flex items-center gap-1">
+                {rejectedQtyValue > 0 && (
+                  <div className="flex items-center justify-between text-red-600">
+                    <span className="flex items-center gap-1 text-sm">
                       <XCircle className="h-3 w-3" />
                       Брак:
                     </span>
-                    <span>{rejectedQty} шт.</span>
+                    <span>{rejectedQtyValue} шт.</span>
                   </div>
                 )}
               </div>
             )}
 
-            <Button type="submit" disabled={isLoading || !isValid} className="w-full">
-              {isLoading ? "Записую..." : "Записати контроль"}
+            <Button type="submit" disabled={isSubmitting || !isValid} className="w-full">
+              {isSubmitting ? "Записую..." : "Записати контроль"}
             </Button>
           </form>
         </CardContent>

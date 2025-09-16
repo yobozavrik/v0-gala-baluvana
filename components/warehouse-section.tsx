@@ -1,8 +1,12 @@
 "use client"
 
-import type React from "react"
+import { useEffect, useState } from "react"
+import { zodResolver } from "@hookform/resolvers/zod"
+import { AlertCircle, Settings, Package } from "lucide-react"
+import { Controller, useForm, type FieldErrors } from "react-hook-form"
+import { z } from "zod"
 
-import { useState, useEffect } from "react"
+import { FormFieldError } from "@/components/form-field-error"
 import { Button } from "@/components/ui/button"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { Input } from "@/components/ui/input"
@@ -11,26 +15,89 @@ import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@
 import { Textarea } from "@/components/ui/textarea"
 import { Alert, AlertDescription } from "@/components/ui/alert"
 import { useToast } from "@/hooks/use-toast"
-import { AlertCircle, Settings, Package } from "lucide-react"
-import { postJSON, API_ENDPOINTS, isEndpointConfigured } from "@/lib/api"
+import { API_ENDPOINTS, isEndpointConfigured, postJSON } from "@/lib/api"
+import { getFirstErrorMessage } from "@/lib/forms"
+
+const packagingTypes = ["Пакет", "Коробка", "Зв'язка"] as const
+const locations = ["Склад А1", "Склад А2", "Склад Б1", "Склад Б2", "Експедиція", "Відвантаження"] as const
+const sizeOptions = ["XS", "S", "M", "L", "XL", "XXL"] as const
+const colorOptions = ["Білий", "Чорний", "Сірий", "Синій", "Червоний", "Зелений"] as const
+
+const warehouseSchema = z.object({
+  product: z.string().trim().min(1, "Вкажіть товар"),
+  sku: z.string().trim().optional().default(""),
+  size: z
+    .string()
+    .trim()
+    .optional()
+    .refine((value) => !value || sizeOptions.includes(value as (typeof sizeOptions)[number]), {
+      message: "Оберіть коректний розмір",
+    })
+    .default(""),
+  color: z
+    .string()
+    .trim()
+    .optional()
+    .refine((value) => !value || colorOptions.includes(value as (typeof colorOptions)[number]), {
+      message: "Оберіть коректний колір",
+    })
+    .default(""),
+  quantity: z
+    .string()
+    .trim()
+    .min(1, "Вкажіть кількість")
+    .refine((value) => /^[0-9]+$/.test(value), { message: "Кількість повинна бути цілим числом" })
+    .refine((value) => Number.parseInt(value, 10) > 0, { message: "Кількість повинна бути додатним числом" }),
+  packaging: z
+    .string()
+    .trim()
+    .min(1, "Оберіть упаковку")
+    .refine((value) => packagingTypes.includes(value as (typeof packagingTypes)[number]), {
+      message: "Оберіть упаковку",
+    }),
+  location: z
+    .string()
+    .trim()
+    .min(1, "Оберіть місце на складі")
+    .refine((value) => locations.includes(value as (typeof locations)[number]), {
+      message: "Оберіть місце на складі",
+    }),
+  receiver: z.string().trim().optional().default(""),
+  notes: z.string().trim().max(500, "Примітки мають містити до 500 символів").optional().default(""),
+})
+
+type WarehouseFormValues = z.infer<typeof warehouseSchema>
+
+const defaultValues: WarehouseFormValues = {
+  product: "",
+  sku: "",
+  size: "",
+  color: "",
+  quantity: "",
+  packaging: "",
+  location: "",
+  receiver: "",
+  notes: "",
+}
 
 export function WarehouseSection() {
-  const [isLoading, setIsLoading] = useState(false)
   const [currentEmployee, setCurrentEmployee] = useState<string>("")
   const { toast } = useToast()
   const isConfigured = isEndpointConfigured(API_ENDPOINTS.warehouse)
 
-  const [formData, setFormData] = useState({
-    product: "",
-    sku: "",
-    size: "",
-    color: "",
-    quantity: "",
-    packaging: "",
-    location: "",
-    receiver: "",
-    notes: "",
+  const form = useForm<WarehouseFormValues>({
+    resolver: zodResolver(warehouseSchema),
+    defaultValues,
+    mode: "onChange",
   })
+
+  const {
+    control,
+    handleSubmit,
+    register,
+    reset,
+    formState: { errors, isSubmitting, isValid },
+  } = form
 
   useEffect(() => {
     const savedEmployee = localStorage.getItem("currentEmployee")
@@ -39,45 +106,20 @@ export function WarehouseSection() {
     }
   }, [])
 
-  const packagingTypes = ["Пакет", "Коробка", "Зв'язка"]
-  const locations = ["Склад А1", "Склад А2", "Склад Б1", "Склад Б2", "Експедиція", "Відвантаження"]
-  const sizes = ["XS", "S", "M", "L", "XL", "XXL"]
-  const colors = ["Білий", "Чорний", "Сірий", "Синій", "Червоний", "Зелений"]
-
-  const getRequiredFieldsStatus = () => {
-    const missingFields = []
-    if (!formData.product) missingFields.push("Товар")
-    if (!formData.quantity) missingFields.push("Кількість")
-    if (!formData.packaging) missingFields.push("Упаковка")
-    if (!formData.location) missingFields.push("Місце на складі")
-
-    return {
-      isValid: missingFields.length === 0,
-      missingFields,
-    }
-  }
-
-  const handleSubmit = async (e: React.FormEvent) => {
-    e.preventDefault()
-
-    const { isValid, missingFields } = getRequiredFieldsStatus()
-
-    if (!isValid) {
-      const employeeName = currentEmployee || "швея"
-      toast({
-        title: `Шановна ${employeeName}`,
-        description: `Неможливо зробити запис. Заповніть поля: ${missingFields.join(", ")}`,
-        variant: "destructive",
-      })
-      return
-    }
-
-    setIsLoading(true)
+  const handleValidSubmit = async (values: WarehouseFormValues) => {
+    const quantityNum = Number.parseInt(values.quantity, 10)
 
     const warehouseData = {
       id: Date.now().toString(),
-      ...formData,
-      quantity: Number.parseInt(formData.quantity),
+      product: values.product.trim(),
+      sku: values.sku?.trim() ?? "",
+      size: values.size?.trim() ?? "",
+      color: values.color?.trim() ?? "",
+      quantity: quantityNum,
+      packaging: values.packaging,
+      location: values.location,
+      receiver: values.receiver?.trim() ?? "",
+      notes: values.notes?.trim() ?? "",
       timestamp: new Date().toISOString(),
       user_id: "telegram_user_id",
     }
@@ -90,22 +132,10 @@ export function WarehouseSection() {
       if (!isConfigured) {
         toast({
           title: "Переказ на склад записано (демо)",
-          description: `${formData.quantity} шт. → ${formData.location}`,
+          description: `${warehouseData.quantity} шт. → ${warehouseData.location}`,
         })
 
-        setFormData({
-          product: "",
-          sku: "",
-          size: "",
-          color: "",
-          quantity: "",
-          packaging: "",
-          location: "",
-          receiver: "",
-          notes: "",
-        })
-
-        setIsLoading(false)
+        reset(defaultValues)
         return
       }
 
@@ -114,20 +144,9 @@ export function WarehouseSection() {
       if (result.success) {
         toast({
           title: "Переказ на склад записано",
-          description: `${formData.quantity} шт. → ${formData.location}`,
+          description: `${warehouseData.quantity} шт. → ${warehouseData.location}`,
         })
-
-        setFormData({
-          product: "",
-          sku: "",
-          size: "",
-          color: "",
-          quantity: "",
-          packaging: "",
-          location: "",
-          receiver: "",
-          notes: "",
-        })
+        reset(defaultValues)
       } else {
         toast({
           title: "Запит додано до черги",
@@ -140,12 +159,22 @@ export function WarehouseSection() {
         description: "Спробуйте ще раз пізніше",
         variant: "destructive",
       })
-    } finally {
-      setIsLoading(false)
     }
   }
 
-  const { isValid } = getRequiredFieldsStatus()
+  const handleInvalidSubmit = (formErrors: FieldErrors<WarehouseFormValues>) => {
+    const employeeName = currentEmployee || "швея"
+    const message =
+      getFirstErrorMessage(formErrors) ?? "Неможливо зробити запис. Перевірте правильність заповнення форми"
+
+    toast({
+      title: `Шановна ${employeeName}`,
+      description: message,
+      variant: "destructive",
+    })
+  }
+
+  const onSubmit = handleSubmit(handleValidSubmit, handleInvalidSubmit)
 
   return (
     <div className="space-y-4">
@@ -167,135 +196,134 @@ export function WarehouseSection() {
           </CardTitle>
         </CardHeader>
         <CardContent>
-          <form onSubmit={handleSubmit} className="space-y-4">
+          <form onSubmit={onSubmit} className="space-y-4" noValidate>
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="product">Товар *</Label>
-                <Input
-                  id="product"
-                  value={formData.product}
-                  onChange={(e) => setFormData({ ...formData, product: e.target.value })}
-                  placeholder="Назва товару"
-                />
+                <Input id="product" placeholder="Назва товару" {...register("product")} />
+                <FormFieldError message={errors.product?.message} className="mt-1" />
               </div>
               <div>
                 <Label htmlFor="sku">SKU</Label>
-                <Input
-                  id="sku"
-                  value={formData.sku}
-                  onChange={(e) => setFormData({ ...formData, sku: e.target.value })}
-                  placeholder="Артикул"
-                />
+                <Input id="sku" placeholder="Артикул" {...register("sku")} />
+                <FormFieldError message={errors.sku?.message} className="mt-1" />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="size">Розмір</Label>
-                <Select value={formData.size} onValueChange={(value) => setFormData({ ...formData, size: value })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Оберіть розмір" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {sizes.map((size) => (
-                      <SelectItem key={size} value={size}>
-                        {size}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Controller
+                  control={control}
+                  name="size"
+                  render={({ field }) => (
+                    <Select value={field.value || undefined} onValueChange={field.onChange}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Оберіть розмір" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {sizeOptions.map((size) => (
+                          <SelectItem key={size} value={size}>
+                            {size}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                <FormFieldError message={errors.size?.message} className="mt-1" />
               </div>
               <div>
                 <Label htmlFor="color">Колір</Label>
-                <Select value={formData.color} onValueChange={(value) => setFormData({ ...formData, color: value })}>
-                  <SelectTrigger>
-                    <SelectValue placeholder="Оберіть колір" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {colors.map((color) => (
-                      <SelectItem key={color} value={color}>
-                        {color}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Controller
+                  control={control}
+                  name="color"
+                  render={({ field }) => (
+                    <Select value={field.value || undefined} onValueChange={field.onChange}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Оберіть колір" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {colorOptions.map((color) => (
+                          <SelectItem key={color} value={color}>
+                            {color}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                <FormFieldError message={errors.color?.message} className="mt-1" />
               </div>
             </div>
 
             <div className="grid grid-cols-2 gap-4">
               <div>
                 <Label htmlFor="quantity">Кількість *</Label>
-                <Input
-                  id="quantity"
-                  type="number"
-                  min="1"
-                  value={formData.quantity}
-                  onChange={(e) => setFormData({ ...formData, quantity: e.target.value })}
-                  placeholder="0"
-                />
+                <Input id="quantity" type="number" min="1" placeholder="0" {...register("quantity")} />
+                <FormFieldError message={errors.quantity?.message} className="mt-1" />
               </div>
               <div>
                 <Label htmlFor="packaging">Упаковка *</Label>
-                <Select
-                  value={formData.packaging}
-                  onValueChange={(value) => setFormData({ ...formData, packaging: value })}
-                >
-                  <SelectTrigger>
-                    <SelectValue placeholder="Тип упаковки" />
-                  </SelectTrigger>
-                  <SelectContent>
-                    {packagingTypes.map((type) => (
-                      <SelectItem key={type} value={type}>
-                        {type}
-                      </SelectItem>
-                    ))}
-                  </SelectContent>
-                </Select>
+                <Controller
+                  control={control}
+                  name="packaging"
+                  render={({ field }) => (
+                    <Select value={field.value || undefined} onValueChange={field.onChange}>
+                      <SelectTrigger>
+                        <SelectValue placeholder="Тип упаковки" />
+                      </SelectTrigger>
+                      <SelectContent>
+                        {packagingTypes.map((type) => (
+                          <SelectItem key={type} value={type}>
+                            {type}
+                          </SelectItem>
+                        ))}
+                      </SelectContent>
+                    </Select>
+                  )}
+                />
+                <FormFieldError message={errors.packaging?.message} className="mt-1" />
               </div>
             </div>
 
             <div>
               <Label htmlFor="location">Місце на складі *</Label>
-              <Select
-                value={formData.location}
-                onValueChange={(value) => setFormData({ ...formData, location: value })}
-              >
-                <SelectTrigger>
-                  <SelectValue placeholder="Оберіть місце" />
-                </SelectTrigger>
-                <SelectContent>
-                  {locations.map((location) => (
-                    <SelectItem key={location} value={location}>
-                      {location}
-                    </SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
+              <Controller
+                control={control}
+                name="location"
+                render={({ field }) => (
+                  <Select value={field.value || undefined} onValueChange={field.onChange}>
+                    <SelectTrigger>
+                      <SelectValue placeholder="Оберіть місце" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      {locations.map((location) => (
+                        <SelectItem key={location} value={location}>
+                          {location}
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                )}
+              />
+              <FormFieldError message={errors.location?.message} className="mt-1" />
             </div>
 
             <div>
               <Label htmlFor="receiver">Отримувач</Label>
-              <Input
-                id="receiver"
-                value={formData.receiver}
-                onChange={(e) => setFormData({ ...formData, receiver: e.target.value })}
-                placeholder="Ім'я отримувача (необов'язково)"
-              />
+              <Input id="receiver" placeholder="Ім'я отримувача (необов'язково)" {...register("receiver")} />
+              <FormFieldError message={errors.receiver?.message} className="mt-1" />
             </div>
 
             <div>
               <Label htmlFor="notes">Примітки</Label>
-              <Textarea
-                id="notes"
-                value={formData.notes}
-                onChange={(e) => setFormData({ ...formData, notes: e.target.value })}
-                placeholder="Додаткова інформація..."
-                rows={3}
-              />
+              <Textarea id="notes" placeholder="Додаткова інформація..." rows={3} {...register("notes")} />
+              <FormFieldError message={errors.notes?.message} className="mt-1" />
             </div>
 
-            <Button type="submit" disabled={isLoading || !isValid} className="w-full">
-              {isLoading ? "Записую..." : "Записати переказ"}
+            <Button type="submit" disabled={isSubmitting || !isValid} className="w-full">
+              {isSubmitting ? "Записую..." : "Записати переказ"}
             </Button>
           </form>
         </CardContent>
